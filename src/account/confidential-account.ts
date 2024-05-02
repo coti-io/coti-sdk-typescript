@@ -1,6 +1,10 @@
-import { BaseWallet, Contract } from "ethers"
+import { BaseWallet, Wallet, Contract, Provider, JsonRpcProvider } from "ethers"
 import { decryptValue, prepareIT } from "../libs/crypto"
 import { onboard } from "./onboard"
+
+function getDefaultProvider() {
+  return new JsonRpcProvider("https://devnet.coti.io")
+}
 
 export class ConfidentialAccount {
   constructor(readonly wallet: BaseWallet, readonly userKey: string) {}
@@ -16,5 +20,9 @@ export class ConfidentialAccount {
   public static async onboard(wallet: BaseWallet, contract?: Contract): Promise<ConfidentialAccount> {
     const userKey = await onboard(wallet, contract)
     return new ConfidentialAccount(wallet, userKey)
+  }
+
+  public static createWallet(provider?: Provider): BaseWallet {
+    return Wallet.createRandom(provider ?? getDefaultProvider())
   }
 }
