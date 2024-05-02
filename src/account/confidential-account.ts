@@ -1,10 +1,7 @@
 import { BaseWallet, Wallet, Contract, Provider, JsonRpcProvider } from "ethers"
 import { decryptValue, prepareIT } from "../libs/crypto"
+import { getDefaultProvider } from "../provider"
 import { onboard } from "./onboard"
-
-function getDefaultProvider() {
-  return new JsonRpcProvider("https://devnet.coti.io")
-}
 
 export class ConfidentialAccount {
   constructor(readonly wallet: BaseWallet, readonly userKey: string) {}
