@@ -1,5 +1,5 @@
 {
-  "name": "coti-sdk-core",
+  "name": "@coti-io/coti-sdk-core",
   "version": "0.0.1",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
