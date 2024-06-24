@@ -58,23 +58,6 @@ The COTI Typescript SDK is comprised of two main components:
 
   * `onboard.ts`: facilitates the onboarding of new users by generating cryptographic keys, signing data, and interacting with a blockchain smart contract. The `onboard` function automates the entire process, ensuring secure onboarding and key management.
 
-## Usage
-
-1. Install dependencies
-
-   ```
-   yarn
-   ```
-
-3. Run ERC20 test
-
-   ```
-   yarn erc20
-   ```
-
-> [!NOTE]  
-> Runnning tests will create an account automatically. The account will be saved to the `.env` file and will need to be funded. Use the COTI faucet to request devnet/testnet funds.
-
 #### Pending enhancements
 
 - Publishing SDK via npmjs
