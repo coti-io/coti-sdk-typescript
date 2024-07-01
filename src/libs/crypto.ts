@@ -66,7 +66,7 @@ function decrypt(key: Buffer, r: Buffer, ciphertext: Buffer) {
   return plaintext
 }
 
-export function generateRSAKeyPair() {
+export function generateRSAKeyPair(): crypto.KeyPairSyncResult<Buffer, Buffer> {
   // Generate a new RSA key pair
   return crypto.generateKeyPairSync("rsa", {
     modulusLength: 2048,
@@ -97,9 +97,9 @@ export function decryptRSA(privateKey: Buffer, ciphertext: Buffer) {
   )
 }
 
-export function decryptValue(ctAmount: bigint, userKey: string) {
+export function decryptUint(ciphertext: bigint, userKey: string) {
   // Convert CT to bytes
-  let ctString = ctAmount.toString(hexBase)
+  let ctString = ciphertext.toString(hexBase)
   let ctArray = Buffer.from(ctString, "hex")
   while (ctArray.length < 32) {
     // When the first bits are 0, bigint bit size is less than 32 and need to re-add the bits
@@ -116,13 +116,25 @@ export function decryptValue(ctAmount: bigint, userKey: string) {
   return parseInt(decryptedMessage.toString("hex"), block_size)
 }
 
+export function decryptString(ciphertext: Array<bigint>, userKey: string) {
+    let decryptedStr = new Array<number>(ciphertext.length)
+
+    for (let i = 0; i < ciphertext.length; i++) {
+        decryptedStr[i] = decryptUint(ciphertext[i], userKey)
+    }
+
+    let decoder = new TextDecoder()
+
+    return decoder.decode(new Uint8Array(decryptedStr))
+}
+
 export function sign(message: string, privateKey: string) {
   const key = new SigningKey(privateKey)
   const sig = key.sign(message)
   return Buffer.concat([getBytes(sig.r), getBytes(sig.s), getBytes(`0x0${sig.v - 27}`)])
 }
 
-export async function prepareIT(
+export function prepareUintIT(
   plaintext: bigint,
   sender: { wallet: BaseWallet; userKey: string },
   contractAddress: string,
@@ -147,6 +159,26 @@ export async function prepareIT(
   const ctInt = BigInt("0x" + ct.toString("hex"))
 
   return { ctInt, signature }
+}
+
+export async function prepareStringIT(
+    plaintext: string,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+) {
+    let encoder = new TextEncoder()
+
+    let encodedStr = encoder.encode(plaintext)
+
+    let encryptedStr = new Array<{ ciphertext: bigint, signature: Buffer }>(plaintext.length)
+
+    for (let i = 0; i < plaintext.length; i++) {
+        const { ctInt, signature } = prepareUintIT(BigInt(encodedStr[i]), sender, contractAddress, functionSelector)
+        encryptedStr[i] = { ciphertext: ctInt, signature }
+    }
+
+    return encryptedStr
 }
 
 export function createRandomUserKey() {
