@@ -113,14 +113,14 @@ export function decryptUint(ciphertext: bigint, userKey: string) {
   // Decrypt the cipher
   const decryptedMessage = decrypt(Buffer.from(userKey, "hex"), r, cipher)
 
-  return parseInt(decryptedMessage.toString("hex"), block_size)
+  return BigInt("0x" + decryptedMessage.toString("hex"))
 }
 
 export function decryptString(ciphertext: Array<bigint>, userKey: string) {
     let decryptedStr = new Array<number>(ciphertext.length)
 
     for (let i = 0; i < ciphertext.length; i++) {
-        decryptedStr[i] = decryptUint(ciphertext[i], userKey)
+        decryptedStr[i] = Number(decryptUint(ciphertext[i], userKey))
     }
 
     let decoder = new TextDecoder()
