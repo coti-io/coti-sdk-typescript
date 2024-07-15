@@ -141,8 +141,16 @@ export function prepareUintIT(
   functionSelector: string
 ) {
   // Convert the plaintext to bytes
-  const plaintextBytes = Buffer.alloc(8) // Allocate a buffer of size 8 bytes
-  plaintextBytes.writeBigUInt64BE(plaintext) // Write the uint64 value to the buffer as little-endian
+  const plaintextBytes = Buffer.alloc(16) // Allocate a buffer of size 8 bytes
+
+  // Write the uint64 value to the buffer as little-endian
+  let i = 15
+
+  while (i >= 0) {
+    plaintextBytes[i] = Number(plaintext & BigInt(255))
+    plaintext >>= BigInt(8)
+    i--
+  }
 
   // Encrypt the plaintext using AES key
   const { ciphertext, r } = encrypt(Buffer.from(sender.userKey, "hex"), plaintextBytes)
