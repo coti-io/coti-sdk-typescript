@@ -413,7 +413,4 @@ Retrieves the native balance of an address in Ether.
 
 - `result`: The address balance in Ether.
 
-
-- Publishing SDK via npmjs
-
 #### To report issues, please create a [github issue](https://github.com/coti-io/coti-sdk-typescript/issues)
