@@ -50,12 +50,11 @@ The following contracts are available in each of the packages:
 
 # COTI v2 Typescript SDK
 
-The COTI Typescript SDK is comprised of two main components:
+The COTI Typescript SDK is composed of two main components:
 
 1. The `crypto_utils.ts`: used for cryptographic operations.
 
 2. The `ether_utils.ts` : used for ethers related operations
-
 
 3. Typescript classes to interact with the COTI network. These are located in the [src/account](src/account) directory.
    The following are provided:
