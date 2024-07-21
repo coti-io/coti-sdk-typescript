@@ -52,7 +52,7 @@ The following contracts are available in each of the packages:
 
 > [!NOTE]
 > Please refer to the latest [tags](https://github.com/coti-io/coti-sdk-typescript/tags) to find the most stable version to use. 
-> All tagged versions are available to install via npmjs
+> All tagged versions are available to install via [npmjs](https://www.npmjs.com/package/@coti-io/coti-sdk-typescript)
 
 The COTI Typescript SDK is composed of two main components:
 
