@@ -160,6 +160,37 @@ export async function buildStringInputText(
     return encryptedStr
 }
 
+export function decryptUint(ciphertext: bigint, userKey: string) {
+    // Convert CT to bytes
+    let ctString = ciphertext.toString(hexBase)
+    let ctArray = Buffer.from(ctString, "hex")
+    while (ctArray.length < 32) {
+        // When the first bits are 0, bigint bit size is less than 32 and need to re-add the bits
+        ctString = "0" + ctString
+        ctArray = Buffer.from(ctString, "hex")
+    }
+    // Split CT into two 128-bit arrays r and cipher
+    const cipher = ctArray.subarray(0, block_size)
+    const r = ctArray.subarray(block_size)
+
+    // Decrypt the cipher
+    const decryptedMessage = decrypt(Buffer.from(userKey, "hex"), r, cipher)
+
+    return BigInt("0x" + decryptedMessage.toString("hex"))
+}
+
+export function decryptString(ciphertext: Array<bigint>, userKey: string) {
+    let decryptedStr = new Array<number>(ciphertext.length)
+
+    for (let i = 0; i < ciphertext.length; i++) {
+        decryptedStr[i] = Number(decryptUint(ciphertext[i], userKey))
+    }
+
+    let decoder = new TextDecoder()
+
+    return decoder.decode(new Uint8Array(decryptedStr))
+}
+
 export function generateAesKey() {
     return crypto.randomBytes(block_size).toString("hex")
 }
