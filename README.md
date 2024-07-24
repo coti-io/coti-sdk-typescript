@@ -155,17 +155,7 @@ Decrypts the given ciphertext using RSA-OAEP with the provided private key.
 
 ### Input text decryption/encryption and Signing
 
-### 1. `decryptValue(ctAmount: bigint, userKey: string)`
-
-Decrypts the given ciphertext amount using the user's key.
-
-- **Parameters**:
-    - `ctAmount`: Ciphertext amount in `bigint`.
-    - `userKey`: User's key in hexadecimal format.
-- **Returns**:
-    - Decrypted value as an integer.
-
-### 2. `sign(message: string, privateKey: string)`
+### 1. `sign(message: string, privateKey: string)`
 
 Signs the given message using the provided private key.
 
@@ -175,7 +165,7 @@ Signs the given message using the provided private key.
 - **Returns**:
     - Signature as a concatenation of `r`, `s`, and `v` values.
 
-### 3. `signInputText(wallet: BaseWallet, userKey: string, contractAddress: string , functionSelector: string, ct: Buffer)`
+### 2. `signInputText(wallet: BaseWallet, userKey: string, contractAddress: string , functionSelector: string, ct: Buffer)`
 
 Signs the given message using the provided private key.
 
@@ -188,7 +178,7 @@ Signs the given message using the provided private key.
 - **Returns**:
     - `signature`: The generated signature.
 
-### 4.`buildInputText(plaintext: bigint, sender: { wallet: BaseWallet; userKey: string }, contractAddress: string, functionSelector: string)`
+### 3.`buildInputText(plaintext: bigint, sender: { wallet: BaseWallet; userKey: string }, contractAddress: string, functionSelector: string)`
 
 Builds input text by encrypting the plaintext and signing it.
 **Parameters:**
@@ -203,7 +193,7 @@ Builds input text by encrypting the plaintext and signing it.
 - `intCipherText`: The integer representation of the ciphertext.
 - `signature`: The generated signature.
 
-### 5.`buildStringInputText((plaintext: string, sender: { wallet: BaseWallet; userKey: string }, contractAddress: string, functionSelector: string)`
+### 4.`buildStringInputText((plaintext: string, sender: { wallet: BaseWallet; userKey: string }, contractAddress: string, functionSelector: string)`
 
 Builds input text by encrypting the plaintext and signing it.
 **Parameters:**
@@ -217,6 +207,32 @@ Builds input text by encrypting the plaintext and signing it.
 
 - `intCipherText`: The integer representation of the ciphertext.
 - `signature`: The generated signature.
+
+### 5. `decryptUint(ciphertext: bigint, userKey: string)`
+
+Decrypts a value stored in a contract using a user key.
+
+**Parameters:**
+
+- `ciphertext`: The value to be decrypted.
+- `userKey`: The user's AES key.
+
+**Returns:**
+
+- `result`: The decrypted value.
+
+### 6. `decryptString(ciphertext: Array<bigint>, userKey: string)`
+
+Decrypts a value stored in a contract using a user key.
+
+**Parameters:**
+
+- `ciphertext`: The value to be decrypted.
+- `userKey`: The user's AES key.
+
+**Returns:**
+
+- `result`: The decrypted value.
 
 # ether_utils.ts
 
@@ -365,33 +381,7 @@ Checks if the provided gas units are sufficient for the transaction.
 - `valid`: Boolean indicating if the gas units are sufficient.
 - `gas_estimate`: The estimated gas units.
 
-### 13. `decryptUint(ciphertext: bigint, userKey: string)`
-
-Decrypts a value stored in a contract using a user key.
-
-**Parameters:**
-
-- `ciphertext`: The value to be decrypted.
-- `userKey`: The user's AES key.
-
-**Returns:**
-
-- `result`: The decrypted value.
-
-### 14. `decryptString(ciphertext: Array<bigint>, userKey: string)`
-
-Decrypts a value stored in a contract using a user key.
-
-**Parameters:**
-
-- `ciphertext`: The value to be decrypted.
-- `userKey`: The user's AES key.
-
-**Returns:**
-
-- `result`: The decrypted value.
-
-### 15.`isProviderConnected(provider: Provider)`
+### 13.`isProviderConnected(provider: Provider)`
 
 Checks if the Web3 instance is connected.
 
@@ -403,7 +393,7 @@ Checks if the Web3 instance is connected.
 
 - `connected`: Boolean indicating if Web3 is connected.
 
-### 16. `getNativeBalance(address: string, provider: Provider)`
+### 14. `getNativeBalance(address: string, provider: Provider)`
 
 Retrieves the native balance of an address in Ether.
 

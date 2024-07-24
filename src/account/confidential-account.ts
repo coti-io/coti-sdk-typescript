@@ -1,7 +1,7 @@
 import {BaseWallet, Contract, Provider, Wallet} from "ethers"
-import {buildInputText} from "../crypto_utils"
+import {buildInputText, buildStringInputText, decryptString, decryptUint} from "../crypto_utils"
 import {onboard} from "./onboard"
-import {decryptUint, initEtherProvider} from "../ethers_utils";
+import {initEtherProvider} from "../ethers_utils";
 
 export class ConfidentialAccount {
     constructor(readonly wallet: BaseWallet, readonly userKey: string) {
@@ -20,7 +20,15 @@ export class ConfidentialAccount {
         return decryptUint(ciphertextValue, this.userKey)
     }
 
-    public encryptValue(plaintextValue: bigint | number, contractAddress: string, functionSelector: string) {
+    public decryptString(ciphertextValue: bigint[]) {
+        return decryptString(ciphertextValue, this.userKey)
+    }
+
+    public encryptUint(plaintextValue: bigint | number, contractAddress: string, functionSelector: string) {
         return buildInputText(BigInt(plaintextValue), this, contractAddress, functionSelector)
+    }
+
+    public encryptString(plaintextValue: string, contractAddress: string, functionSelector: string) {
+        return buildStringInputText(plaintextValue, this, contractAddress, functionSelector)
     }
 }
