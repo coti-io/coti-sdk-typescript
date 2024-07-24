@@ -1,63 +1,81 @@
-import crypto from "crypto"
+import forge from 'node-forge'
 import {BaseWallet, ethers, getBytes, SigningKey, solidityPackedKeccak256} from "ethers"
 import * as fs from "node:fs";
 
-const block_size = 16 // AES block size in bytes
-const hexBase = 16
+const BLOCK_SIZE = 16 // AES block size in bytes
+const HEX_BASE = 16
 
-export function encrypt(key: Buffer, plaintext: Buffer): { ciphertext: Buffer; r: Buffer } {
+export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: Uint8Array; r: Uint8Array } {
     // Ensure plaintext is smaller than 128 bits (16 bytes)
-    if (plaintext.length > block_size) {
+    if (plaintext.length > BLOCK_SIZE) {
         throw new RangeError("Plaintext size must be 128 bits or smaller.")
     }
+
     // Ensure key size is 128 bits (16 bytes)
-    if (key.length != block_size) {
+    if (key.length != BLOCK_SIZE) {
         throw new RangeError("Key size must be 128 bits.")
     }
-    // Create a new AES cipher using the provided key
-    const cipher = crypto.createCipheriv("aes-128-ecb", key, null)
-
     // Generate a random value 'r' of the same length as the block size
-    const r = crypto.randomBytes(block_size)
+    const r = forge.random.getBytesSync(BLOCK_SIZE)
+
+    // Create a new AES cipher using the provided key
+    const cipher = forge.cipher.createCipher('AES-ECB', forge.util.createBuffer(key))
 
     // Encrypt the random value 'r' using AES in ECB mode
-    const encryptedR = cipher.update(r)
+    cipher.start()
+    cipher.update(forge.util.createBuffer(r))
+    cipher.finish()
+
+    // Get the encrypted random value 'r' as a Buffer and ensure it's exactly 16 bytes
+    // the node-forge package produces strange results when passing strings
+    const encryptedR = encodeString(cipher.output.data).slice(0, BLOCK_SIZE)
 
     // Pad the plaintext with zeros if it's smaller than the block size
-    const plaintext_padded = Buffer.concat([Buffer.alloc(block_size - plaintext.length), plaintext])
+    const plaintextPadded = new Uint8Array([...new Uint8Array(BLOCK_SIZE - plaintext.length), ...plaintext])
 
     // XOR the encrypted random value 'r' with the plaintext to obtain the ciphertext
-    const ciphertext = Buffer.alloc(encryptedR.length)
-    for (let i = 0; i < encryptedR.length; i++) {
-        ciphertext[i] = encryptedR[i] ^ plaintext_padded[i]
+    const ciphertext = new Uint8Array(BLOCK_SIZE)
+
+    for (let i = 0; i < BLOCK_SIZE; i++) {
+        ciphertext[i] = encryptedR[i] ^ plaintextPadded[i]
     }
 
-    return {ciphertext, r}
+    return {
+        ciphertext,
+        r: encodeString(r)
+    }
 }
 
-export function decrypt(key: Buffer, r: Buffer, ciphertext: Buffer): Buffer {
-    if (ciphertext.length !== block_size) {
+export function decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array): Uint8Array {
+    if (ciphertext.length !== BLOCK_SIZE) {
         throw new RangeError("Ciphertext size must be 128 bits.")
     }
 
     // Ensure key size is 128 bits (16 bytes)
-    if (key.length != block_size) {
+    if (key.length != BLOCK_SIZE) {
         throw new RangeError("Key size must be 128 bits.")
     }
 
     // Ensure random size is 128 bits (16 bytes)
-    if (r.length != block_size) {
+    if (r.length != BLOCK_SIZE) {
         throw new RangeError("Random size must be 128 bits.")
     }
 
     // Create a new AES decipher using the provided key
-    const cipher = crypto.createCipheriv("aes-128-ecb", key, null)
+    const cipher = forge.cipher.createCipher('AES-ECB', forge.util.createBuffer(key))
 
     // Encrypt the random value 'r' using AES in ECB mode
-    const encryptedR = cipher.update(r)
+    cipher.start()
+    cipher.update(forge.util.createBuffer(r))
+    cipher.finish()
+
+    // Get the encrypted random value 'r' as a Buffer and ensure it's exactly 16 bytes
+    // the node-forge package produces strange results when passing strings
+    const encryptedR = encodeString(cipher.output.data)
 
     // XOR the encrypted random value 'r' with the ciphertext to obtain the plaintext
-    const plaintext = Buffer.alloc(encryptedR.length)
+    const plaintext = new Uint8Array(BLOCK_SIZE)
+
     for (let i = 0; i < encryptedR.length; i++) {
         plaintext[i] = encryptedR[i] ^ ciphertext[i]
     }
@@ -65,54 +83,61 @@ export function decrypt(key: Buffer, r: Buffer, ciphertext: Buffer): Buffer {
     return plaintext
 }
 
-export function generateRSAKeyPair(): crypto.KeyPairSyncResult<Buffer, Buffer> {
+export function generateRSAKeyPair(): { publicKey: Uint8Array; privateKey: Uint8Array } {
     // Generate a new RSA key pair
-    return crypto.generateKeyPairSync("rsa", {
-        modulusLength: 2048,
-        publicKeyEncoding: {
-            type: "spki",
-            format: "der", // Specify 'der' format for binary data
-        },
-        privateKeyEncoding: {
-            type: "pkcs8",
-            format: "der", // Specify 'der' format for binary data
-        },
-    })
+    const rsaKeyPair = forge.pki.rsa.generateKeyPair({ bits: 2048 })
+
+    // Convert keys to DER format
+    const privateKey = forge.asn1.toDer(forge.pki.privateKeyToAsn1(rsaKeyPair.privateKey)).data
+    const publicKey = forge.asn1.toDer(forge.pki.publicKeyToAsn1(rsaKeyPair.publicKey)).data
+
+    return {
+        privateKey: encodeString(privateKey),
+        publicKey: encodeString(publicKey)
+    }
 }
 
-export function decryptRSA(privateKey: Buffer, ciphertext: Buffer): Buffer {
-    // Load the private key in PEM format
-    let privateKeyPEM = privateKey.toString("base64")
-    privateKeyPEM = `-----BEGIN PRIVATE KEY-----\n${privateKeyPEM}\n-----END PRIVATE KEY-----`
-    // Decrypt the ciphertext using RSA-OAEP
-    return crypto.privateDecrypt(
-        {
-            key: privateKeyPEM,
-            padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-            oaepHash: "sha256",
-        },
-        ciphertext
-    )
-}
+export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
+    // Convert privateKey from Uint8Array to PEM format
+    const privateKeyPEM = forge.pki.privateKeyToPem(forge.pki.privateKeyFromAsn1(forge.asn1.fromDer(forge.util.createBuffer(privateKey))));
 
+    // Decrypt using RSA-OAEP
+    const rsaPrivateKey = forge.pki.privateKeyFromPem(privateKeyPEM);
+    
+    const decrypted = rsaPrivateKey.decrypt(forge.util.hexToBytes(ciphertext), 'RSA-OAEP', {
+        md: forge.md.sha256.create()
+    });
+
+    const decryptedBytes = encodeString(decrypted)
+
+    const userKey: Array<string> = []
+
+    for (let i = 0; i < decryptedBytes.length; i++) {
+        userKey.push(decryptedBytes[i].toString(16))
+    }
+
+    return userKey.join("")
+}
 
 export function sign(message: string, privateKey: string) {
     const key = new SigningKey(privateKey)
     const sig = key.sign(message)
-    return Buffer.concat([getBytes(sig.r), getBytes(sig.s), getBytes(`0x0${sig.v - 27}`)])
+    return new Uint8Array([...getBytes(sig.r), ...getBytes(sig.s), ...getBytes(`0x0${sig.v - 27}`)])
 }
 
 export function keccak256(publicKey: Buffer) {
     return ethers.keccak256(publicKey);
 }
 
-export function signInputText(sender: {
-    wallet: BaseWallet;
-    userKey: string
-}, contractAddress: string, functionSelector: string, ct: Buffer) {
+export function signInputText(
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string,
+    ct: bigint
+) {
     const message = solidityPackedKeccak256(
         ["address", "address", "bytes4", "uint256"],
-        [sender.wallet.address, contractAddress, functionSelector, BigInt("0x" + ct.toString("hex"))]
+        [sender.wallet.address, contractAddress, functionSelector, ct]
     )
 
     return sign(message, sender.wallet.privateKey);
@@ -124,20 +149,26 @@ export function buildInputText(
     contractAddress: string,
     functionSelector: string
 ) {
+    if (plaintext >= BigInt(2) ** BigInt(128)) {
+        throw new RangeError("Plaintext size must be 128 bits or smaller.")
+    }
+
     // Convert the plaintext to bytes
-    const plaintextBytes = Buffer.alloc(8) // Allocate a buffer of size 8 bytes
-    plaintextBytes.writeBigUInt64BE(plaintext) // Write the uint64 value to the buffer as little-endian
+    const plaintextBytes = encodeUint(plaintext)
+
+    // Convert user key to bytes
+    const keyBytes = encodeKey(sender.userKey)
 
     // Encrypt the plaintext using AES key
-    const {ciphertext, r} = encrypt(Buffer.from(sender.userKey, "hex"), plaintextBytes)
-    const ct = Buffer.concat([ciphertext, r])
-
-    const signature = signInputText(sender, contractAddress, functionSelector, ct);
+    const { ciphertext, r } = encrypt(keyBytes, plaintextBytes)
+    const ct = new Uint8Array([...ciphertext, ...r])
 
     // Convert the ciphertext to BigInt
-    const ctInt = BigInt("0x" + ct.toString("hex"))
+    const ctInt = decodeUint(ct)
 
-    return {ctInt, signature}
+    const signature = signInputText(sender, contractAddress, functionSelector, ctInt);
+
+    return { ctInt, signature }
 }
 
 export async function buildStringInputText(
@@ -150,36 +181,43 @@ export async function buildStringInputText(
 
     let encodedStr = encoder.encode(plaintext)
 
-    let encryptedStr = new Array<{ ciphertext: bigint, signature: Buffer }>(plaintext.length)
+    let encryptedStr = new Array<{ ciphertext: bigint, signature: Uint8Array }>(plaintext.length)
 
     for (let i = 0; i < plaintext.length; i++) {
-        const {ctInt, signature} = buildInputText(BigInt(encodedStr[i]), sender, contractAddress, functionSelector)
-        encryptedStr[i] = {ciphertext: ctInt, signature}
+        const { ctInt, signature } = buildInputText(BigInt(encodedStr[i]), sender, contractAddress, functionSelector)
+        encryptedStr[i] = { ciphertext: ctInt, signature }
     }
 
     return encryptedStr
 }
 
-export function decryptUint(ciphertext: bigint, userKey: string) {
-    // Convert CT to bytes
-    let ctString = ciphertext.toString(hexBase)
-    let ctArray = Buffer.from(ctString, "hex")
-    while (ctArray.length < 32) {
-        // When the first bits are 0, bigint bit size is less than 32 and need to re-add the bits
-        ctString = "0" + ctString
-        ctArray = Buffer.from(ctString, "hex")
+export function decryptUint(ciphertext: bigint, userKey: string): bigint {
+    // Convert ciphertext to Uint8Array
+    let ctArray = new Uint8Array()
+
+    let temp = new Uint8Array()
+
+    while (ciphertext > 0) {
+        temp = new Uint8Array([Number(ciphertext & BigInt(255))])
+        ctArray = new Uint8Array([...temp, ...ctArray])
+        ciphertext >>= BigInt(8)
     }
+
+    ctArray = new Uint8Array([...new Uint8Array(32 - ctArray.length), ...ctArray])
+
     // Split CT into two 128-bit arrays r and cipher
-    const cipher = ctArray.subarray(0, block_size)
-    const r = ctArray.subarray(block_size)
+    const cipher = ctArray.subarray(0, BLOCK_SIZE)
+    const r = ctArray.subarray(BLOCK_SIZE)
+
+    const userKeyBytes = encodeKey(userKey)
 
     // Decrypt the cipher
-    const decryptedMessage = decrypt(Buffer.from(userKey, "hex"), r, cipher)
+    const decryptedMessage = decrypt(userKeyBytes, r, cipher)
 
-    return BigInt("0x" + decryptedMessage.toString("hex"))
+    return decodeUint(decryptedMessage)
 }
 
-export function decryptString(ciphertext: Array<bigint>, userKey: string) {
+export function decryptString(ciphertext: Array<bigint>, userKey: string): string {
     let decryptedStr = new Array<number>(ciphertext.length)
 
     for (let i = 0; i < ciphertext.length; i++) {
@@ -191,25 +229,64 @@ export function decryptString(ciphertext: Array<bigint>, userKey: string) {
     return decoder.decode(new Uint8Array(decryptedStr))
 }
 
-export function generateAesKey() {
-    return crypto.randomBytes(block_size).toString("hex")
+export function generateAesKey(): string {
+    return forge.random.getBytesSync(BLOCK_SIZE)
 }
 
 export function loadAesKey(filePath: string): Buffer {
     const hexKey = fs.readFileSync(filePath, 'utf8').trim();
     const key = Buffer.from(hexKey, 'hex');
-    if (key.length !== block_size) {
-        throw new Error(`Invalid key length: ${key.length} bytes, must be ${block_size} bytes`);
+    if (key.length !== BLOCK_SIZE) {
+        throw new Error(`Invalid key length: ${key.length} bytes, must be ${BLOCK_SIZE} bytes`);
     }
     return key;
 }
 
 export function writeAesKey(filePath: string, key: Buffer): void {
-    if (key.length !== block_size) {
-        throw new Error(`Invalid key length: ${key.length} bytes, must be ${block_size} bytes`);
+    if (key.length !== BLOCK_SIZE) {
+        throw new Error(`Invalid key length: ${key.length} bytes, must be ${BLOCK_SIZE} bytes`);
     }
     const hexKey = key.toString('hex');
     fs.writeFileSync(filePath, hexKey);
 }
 
+export function encodeString(str: string): Uint8Array {
+    return new Uint8Array([...str.split('').map((char) => parseInt(char.codePointAt(0)?.toString(HEX_BASE)!, HEX_BASE))])
+}
 
+export function encodeKey(userKey: string): Uint8Array {
+    const keyBytes = new Uint8Array(16)
+      
+    for (let i = 0; i < 32; i += 2) {
+        keyBytes[i / 2] = parseInt(userKey.slice(i, i+2), HEX_BASE)
+    }
+  
+    return keyBytes
+  }
+  
+  export function encodeUint(plaintext: bigint): Uint8Array {
+    // Convert the plaintext to bytes in little-endian format
+
+    const plaintextBytes = new Uint8Array(BLOCK_SIZE) // Allocate a buffer of size 16 bytes
+  
+    for (let i = 15; i >= 0; i--) {
+      plaintextBytes[i] = Number(plaintext & BigInt(255))
+      plaintext >>= BigInt(8)
+    }
+  
+    return plaintextBytes
+  }
+
+  export function decodeUint(plaintextBytes: Uint8Array): bigint {
+    const plaintext: Array<string> = []
+  
+    let byte = ''
+  
+    for (let i = 0; i < plaintextBytes.length; i++) {
+      byte = plaintextBytes[i].toString(HEX_BASE).padStart(2, '0') // ensure that the zero byte is represented using two digits
+      
+      plaintext.push(byte)
+    }
+  
+    return BigInt("0x" + plaintext.join(""))
+  }
