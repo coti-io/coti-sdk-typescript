@@ -58,7 +58,7 @@ export function decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array):
 
 export function generateRSAKeyPair(): { publicKey: Uint8Array; privateKey: Uint8Array } {
     // Generate a new RSA key pair
-    const rsaKeyPair = forge.pki.rsa.generateKeyPair({ bits: 2048 })
+    const rsaKeyPair = forge.pki.rsa.generateKeyPair({bits: 2048})
 
     // Convert keys to DER format
     const privateKey = forge.asn1.toDer(forge.pki.privateKeyToAsn1(rsaKeyPair.privateKey)).data
@@ -76,7 +76,7 @@ export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
 
     // Decrypt using RSA-OAEP
     const rsaPrivateKey = forge.pki.privateKeyFromPem(privateKeyPEM);
-    
+
     const decrypted = rsaPrivateKey.decrypt(forge.util.hexToBytes(ciphertext), 'RSA-OAEP', {
         md: forge.md.sha256.create()
     });
@@ -133,7 +133,7 @@ export function buildInputText(
     const keyBytes = encodeKey(sender.userKey)
 
     // Encrypt the plaintext using AES key
-    const { ciphertext, r } = encrypt(keyBytes, plaintextBytes)
+    const {ciphertext, r} = encrypt(keyBytes, plaintextBytes)
     const ct = new Uint8Array([...ciphertext, ...r])
 
     // Convert the ciphertext to BigInt
@@ -141,7 +141,7 @@ export function buildInputText(
 
     const signature = signInputText(sender, contractAddress, functionSelector, ctInt);
 
-    return { ctInt, signature }
+    return {ctInt, signature}
 }
 
 export async function buildStringInputText(
@@ -157,8 +157,8 @@ export async function buildStringInputText(
     let encryptedStr = new Array<{ ciphertext: bigint, signature: Uint8Array }>(plaintext.length)
 
     for (let i = 0; i < plaintext.length; i++) {
-        const { ctInt, signature } = buildInputText(BigInt(encodedStr[i]), sender, contractAddress, functionSelector)
-        encryptedStr[i] = { ciphertext: ctInt, signature }
+        const {ctInt, signature} = buildInputText(BigInt(encodedStr[i]), sender, contractAddress, functionSelector)
+        encryptedStr[i] = {ciphertext: ctInt, signature}
     }
 
     return encryptedStr
@@ -227,38 +227,38 @@ export function encodeString(str: string): Uint8Array {
 
 export function encodeKey(userKey: string): Uint8Array {
     const keyBytes = new Uint8Array(16)
-      
+
     for (let i = 0; i < 32; i += 2) {
-        keyBytes[i / 2] = parseInt(userKey.slice(i, i+2), HEX_BASE)
+        keyBytes[i / 2] = parseInt(userKey.slice(i, i + 2), HEX_BASE)
     }
-  
+
     return keyBytes
 }
-  
+
 export function encodeUint(plaintext: bigint): Uint8Array {
     // Convert the plaintext to bytes in little-endian format
 
     const plaintextBytes = new Uint8Array(BLOCK_SIZE) // Allocate a buffer of size 16 bytes
-  
+
     for (let i = 15; i >= 0; i--) {
-      plaintextBytes[i] = Number(plaintext & BigInt(255))
-      plaintext >>= BigInt(8)
+        plaintextBytes[i] = Number(plaintext & BigInt(255))
+        plaintext >>= BigInt(8)
     }
-  
+
     return plaintextBytes
 }
 
 export function decodeUint(plaintextBytes: Uint8Array): bigint {
     const plaintext: Array<string> = []
-  
+
     let byte = ''
-  
+
     for (let i = 0; i < plaintextBytes.length; i++) {
-      byte = plaintextBytes[i].toString(HEX_BASE).padStart(2, '0') // ensure that the zero byte is represented using two digits
-      
-      plaintext.push(byte)
+        byte = plaintextBytes[i].toString(HEX_BASE).padStart(2, '0') // ensure that the zero byte is represented using two digits
+
+        plaintext.push(byte)
     }
-  
+
     return BigInt("0x" + plaintext.join(""))
 }
 
