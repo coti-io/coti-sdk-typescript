@@ -1,6 +1,5 @@
 import forge from 'node-forge'
 import {BaseWallet, ethers, getBytes, SigningKey, solidityPackedKeccak256} from "ethers"
-import * as fs from "node:fs";
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
@@ -202,23 +201,6 @@ export function decryptString(ciphertext: Array<bigint>, userKey: string): strin
 
 export function generateAesKey(): string {
     return forge.random.getBytesSync(BLOCK_SIZE)
-}
-
-export function loadAesKey(filePath: string): Buffer {
-    const hexKey = fs.readFileSync(filePath, 'utf8').trim();
-    const key = Buffer.from(hexKey, 'hex');
-    if (key.length !== BLOCK_SIZE) {
-        throw new Error(`Invalid key length: ${key.length} bytes, must be ${BLOCK_SIZE} bytes`);
-    }
-    return key;
-}
-
-export function writeAesKey(filePath: string, key: Buffer): void {
-    if (key.length !== BLOCK_SIZE) {
-        throw new Error(`Invalid key length: ${key.length} bytes, must be ${BLOCK_SIZE} bytes`);
-    }
-    const hexKey = key.toString('hex');
-    fs.writeFileSync(filePath, hexKey);
 }
 
 export function encodeString(str: string): Uint8Array {
