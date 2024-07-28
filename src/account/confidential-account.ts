@@ -16,7 +16,7 @@ export class ConfidentialAccount {
         return Wallet.createRandom(provider ?? initEtherProvider())
     }
 
-    public decryptValue(ciphertextValue: bigint) {
+    public decryptUint(ciphertextValue: bigint) {
         return decryptUint(ciphertextValue, this.userKey)
     }
 

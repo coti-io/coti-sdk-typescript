@@ -11,24 +11,11 @@ export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: U
         throw new RangeError("Plaintext size must be 128 bits or smaller.")
     }
 
-    // Ensure key size is 128 bits (16 bytes)
-    if (key.length != BLOCK_SIZE) {
-        throw new RangeError("Key size must be 128 bits.")
-    }
     // Generate a random value 'r' of the same length as the block size
     const r = forge.random.getBytesSync(BLOCK_SIZE)
 
-    // Create a new AES cipher using the provided key
-    const cipher = forge.cipher.createCipher('AES-ECB', forge.util.createBuffer(key))
-
-    // Encrypt the random value 'r' using AES in ECB mode
-    cipher.start()
-    cipher.update(forge.util.createBuffer(r))
-    cipher.finish()
-
-    // Get the encrypted random value 'r' as a Buffer and ensure it's exactly 16 bytes
-    // the node-forge package produces strange results when passing strings
-    const encryptedR = encodeString(cipher.output.data).slice(0, BLOCK_SIZE)
+    // Get the encrypted random value 'r'
+    const encryptedR = encryptRandomNumber(r, key)
 
     // Pad the plaintext with zeros if it's smaller than the block size
     const plaintextPadded = new Uint8Array([...new Uint8Array(BLOCK_SIZE - plaintext.length), ...plaintext])
@@ -51,27 +38,13 @@ export function decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array):
         throw new RangeError("Ciphertext size must be 128 bits.")
     }
 
-    // Ensure key size is 128 bits (16 bytes)
-    if (key.length != BLOCK_SIZE) {
-        throw new RangeError("Key size must be 128 bits.")
-    }
-
     // Ensure random size is 128 bits (16 bytes)
     if (r.length != BLOCK_SIZE) {
         throw new RangeError("Random size must be 128 bits.")
     }
 
-    // Create a new AES decipher using the provided key
-    const cipher = forge.cipher.createCipher('AES-ECB', forge.util.createBuffer(key))
-
-    // Encrypt the random value 'r' using AES in ECB mode
-    cipher.start()
-    cipher.update(forge.util.createBuffer(r))
-    cipher.finish()
-
-    // Get the encrypted random value 'r' as a Buffer and ensure it's exactly 16 bytes
-    // the node-forge package produces strange results when passing strings
-    const encryptedR = encodeString(cipher.output.data)
+    // Get the encrypted random value 'r'
+    const encryptedR = encryptRandomNumber(r, key)
 
     // XOR the encrypted random value 'r' with the ciphertext to obtain the plaintext
     const plaintext = new Uint8Array(BLOCK_SIZE)
@@ -195,10 +168,8 @@ export function decryptUint(ciphertext: bigint, userKey: string): bigint {
     // Convert ciphertext to Uint8Array
     let ctArray = new Uint8Array()
 
-    let temp = new Uint8Array()
-
     while (ciphertext > 0) {
-        temp = new Uint8Array([Number(ciphertext & BigInt(255))])
+        const temp = new Uint8Array([Number(ciphertext & BigInt(255))])
         ctArray = new Uint8Array([...temp, ...ctArray])
         ciphertext >>= BigInt(8)
     }
@@ -262,9 +233,9 @@ export function encodeKey(userKey: string): Uint8Array {
     }
   
     return keyBytes
-  }
+}
   
-  export function encodeUint(plaintext: bigint): Uint8Array {
+export function encodeUint(plaintext: bigint): Uint8Array {
     // Convert the plaintext to bytes in little-endian format
 
     const plaintextBytes = new Uint8Array(BLOCK_SIZE) // Allocate a buffer of size 16 bytes
@@ -275,9 +246,9 @@ export function encodeKey(userKey: string): Uint8Array {
     }
   
     return plaintextBytes
-  }
+}
 
-  export function decodeUint(plaintextBytes: Uint8Array): bigint {
+export function decodeUint(plaintextBytes: Uint8Array): bigint {
     const plaintext: Array<string> = []
   
     let byte = ''
@@ -289,4 +260,24 @@ export function encodeKey(userKey: string): Uint8Array {
     }
   
     return BigInt("0x" + plaintext.join(""))
-  }
+}
+
+function encryptRandomNumber(r: string | Uint8Array, key: Uint8Array) {
+    // Ensure key size is 128 bits (16 bytes)
+    if (key.length != BLOCK_SIZE) {
+        throw new RangeError("Key size must be 128 bits.")
+    }
+
+    // Create a new AES cipher using the provided key
+    const cipher = forge.cipher.createCipher('AES-ECB', forge.util.createBuffer(key))
+
+    // Encrypt the random value 'r' using AES in ECB mode
+    cipher.start()
+    cipher.update(forge.util.createBuffer(r))
+    cipher.finish()
+
+    // Get the encrypted random value 'r' as a Buffer and ensure it's exactly 16 bytes
+    const encryptedR = encodeString(cipher.output.data).slice(0, BLOCK_SIZE)
+
+    return encryptedR
+}
