@@ -9,16 +9,16 @@ function getDefaultContract(wallet: Signer) {
 export async function onboard(user: BaseWallet, contract = getDefaultContract(user)) {
     const {publicKey, privateKey} = generateRSAKeyPair()
 
-    const signedEK = sign(keccak256(publicKey), user.privateKey)
-    const receipt = await (await contract.OnboardAccount(publicKey, signedEK, {gasLimit: 12000000})).wait()
-    if (!receipt || !receipt.logs || !receipt.logs[0]) {
-        throw new Error("failed to onboard account")
-    }
-    const decodedLog = contract.interface.parseLog(receipt.logs[0])
-    if (!decodedLog) {
-        throw new Error("failed to onboard account")
-    }
-    const encryptedKey = decodedLog.args.userKey
-    const buf = Buffer.from(encryptedKey.substring(2), "hex")
-    return decryptRSA(privateKey, buf).toString("hex")
+  const signedEK = sign(keccak256(publicKey), user.privateKey)
+  const receipt = await (await contract.onboardAccount(publicKey, signedEK, { gasLimit: 12000000 })).wait()
+  if (!receipt || !receipt.logs || !receipt.logs[0]) {
+    throw new Error("failed to onboard account")
+  }
+  const decodedLog = contract.interface.parseLog(receipt.logs[0])
+  if (!decodedLog) {
+    throw new Error("failed to onboard account")
+  }
+  const encryptedKey = decodedLog.args.userKey
+  const buf = Buffer.from(encryptedKey.substring(2), "hex")
+  return decryptRSA(privateKey, buf).toString("hex")
 }
