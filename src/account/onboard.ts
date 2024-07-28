@@ -19,6 +19,6 @@ export async function onboard(user: BaseWallet, contract = getDefaultContract(us
     throw new Error("failed to onboard account")
   }
   const encryptedKey = decodedLog.args.userKey
-  const buf = Buffer.from(encryptedKey.substring(2), "hex")
-  return decryptRSA(privateKey, buf).toString("hex")
+  
+  return decryptRSA(privateKey, encryptedKey.substring(2))
 }
