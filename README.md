@@ -126,14 +126,6 @@ Generates a random 128-bit AES key.
 
 - `key`: The generated 128-bit AES key.
 
-### 4.`writeAesKey(file_path, key)`
-
-Writes a 128-bit AES key to a file in hex-encoded format.
-**Parameters:**
-
-- `filePath`: Path to the file where the key will be written.
-- `key`: The 128-bit AES key.
-
 ### RSA Key Management
 
 ### 1. `generateRSAKeyPair()`
