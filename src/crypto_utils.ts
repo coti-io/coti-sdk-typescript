@@ -85,7 +85,11 @@ export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
     const userKey: Array<string> = []
 
     for (let i = 0; i < decryptedBytes.length; i++) {
-        userKey.push(decryptedBytes[i].toString(16))
+        userKey.push(
+            decryptedBytes[i]
+            .toString(16)
+            .padStart(2, '0') // make sure each cell is one byte
+        )
     }
 
     return userKey.join("")
