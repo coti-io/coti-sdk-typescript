@@ -7,7 +7,7 @@ function getDefaultContract(wallet: Signer) {
 }
 
 export async function onboard(user: BaseWallet, contract = getDefaultContract(user)) {
-    const {publicKey, privateKey} = generateRSAKeyPair()
+  const {publicKey, privateKey} = generateRSAKeyPair()
 
   const signedEK = sign(keccak256(publicKey), user.privateKey)
   const receipt = await (await contract.onboardAccount(publicKey, signedEK, { gasLimit: 12000000 })).wait()

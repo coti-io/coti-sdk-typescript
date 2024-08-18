@@ -198,8 +198,7 @@ Builds input text by encrypting the plaintext and signing it.
 
 **Returns:**
 
-- `intCipherText`: The integer representation of the ciphertext.
-- `signature`: The generated signature.
+- `inputText`: An object of the form { "ciphertext": { "value": int[] }, "signature": bytes[] }
 
 ### 5. `decryptUint(ciphertext: bigint, userKey: string)`
 
@@ -220,12 +219,12 @@ Decrypts a value stored in a contract using a user key.
 
 **Parameters:**
 
-- `ciphertext`: The value to be decrypted.
+- `ciphertext`: An object of the form { "value": int[] } where each cell holds up to 8 characters (padded at the end with zeroes) encrypted
 - `userKey`: The user's AES key.
 
 **Returns:**
 
-- `result`: The decrypted value.
+- `result`: The decrypted string.
 
 # ether_utils.ts
 

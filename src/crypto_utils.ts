@@ -147,7 +147,7 @@ export function buildInputText(
     return {ctInt, signature}
 }
 
-export async function buildStringInputText(
+export function buildStringInputText(
     plaintext: string,
     sender: { wallet: BaseWallet; userKey: string },
     contractAddress: string,
@@ -157,14 +157,29 @@ export async function buildStringInputText(
 
     let encodedStr = encoder.encode(plaintext)
 
-    let encryptedStr = new Array<{ ciphertext: bigint, signature: Uint8Array }>(plaintext.length)
-
-    for (let i = 0; i < plaintext.length; i++) {
-        const {ctInt, signature} = buildInputText(BigInt(encodedStr[i]), sender, contractAddress, functionSelector)
-        encryptedStr[i] = {ciphertext: ctInt, signature}
+    const inputText = {
+        ciphertext: { value: new Array<bigint> },
+        signature: new Array<Uint8Array>
     }
 
-    return encryptedStr
+    for (let i = 0; i < encodedStr.length / 8; i++) {
+        const startIdx = i * 8
+        const endIdx = Math.min(startIdx + 8, encodedStr.length)
+
+        const byteArr = new Uint8Array([...encodedStr.slice(startIdx, endIdx), ...new Uint8Array(8 - (endIdx - startIdx))])
+
+        const it = buildInputText(
+            decodeUint(byteArr),
+            sender,
+            contractAddress,
+            functionSelector
+        )
+
+        inputText.ciphertext.value.push(it.ctInt)
+        inputText.signature.push(it.signature)
+    }
+
+    return inputText
 }
 
 export function decryptUint(ciphertext: bigint, userKey: string): bigint {
@@ -191,16 +206,20 @@ export function decryptUint(ciphertext: bigint, userKey: string): bigint {
     return decodeUint(decryptedMessage)
 }
 
-export function decryptString(ciphertext: Array<bigint>, userKey: string): string {
-    let decryptedStr = new Array<number>(ciphertext.length)
+export function decryptString(ciphertext: { value: bigint[] }, userKey: string): string {
+    let encodedStr = new Uint8Array()
 
-    for (let i = 0; i < ciphertext.length; i++) {
-        decryptedStr[i] = Number(decryptUint(ciphertext[i], userKey))
+    for (let i = 0; i < ciphertext.value.length; i++) {
+        const decrypted = decryptUint(BigInt(ciphertext.value[i]), userKey)
+        
+        encodedStr = new Uint8Array([...encodedStr, ...encodeUint(decrypted)])
     }
 
-    let decoder = new TextDecoder()
+    const decoder = new TextDecoder()
 
-    return decoder.decode(new Uint8Array(decryptedStr))
+    return decoder
+        .decode(encodedStr)
+        .replace(/\0/g, '')
 }
 
 export function generateAesKey(): string {
