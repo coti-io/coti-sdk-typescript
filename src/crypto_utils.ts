@@ -87,8 +87,8 @@ export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
     for (let i = 0; i < decryptedBytes.length; i++) {
         userKey.push(
             decryptedBytes[i]
-            .toString(16)
-            .padStart(2, '0') // make sure each cell is one byte
+                .toString(16)
+                .padStart(2, '0') // make sure each cell is one byte
         )
     }
 
@@ -203,7 +203,7 @@ export function decryptString(ciphertext: Array<bigint>, userKey: string): strin
     return decoder.decode(new Uint8Array(decryptedStr))
 }
 
-export function generateAesKey(): string {
+export function generateRandomAesKeySizeNumber(): string {
     return forge.random.getBytesSync(BLOCK_SIZE)
 }
 
