@@ -1,5 +1,5 @@
 import forge from 'node-forge'
-import {BaseWallet, ethers, getBytes, SigningKey, solidityPackedKeccak256} from "ethers"
+import {BaseWallet, getBytes, SigningKey, solidityPackedKeccak256} from "ethers"
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
@@ -99,10 +99,6 @@ export function sign(message: string, privateKey: string) {
     const key = new SigningKey(privateKey)
     const sig = key.sign(message)
     return new Uint8Array([...getBytes(sig.r), ...getBytes(sig.s), ...getBytes(`0x0${sig.v - 27}`)])
-}
-
-export function keccak256(publicKey: Buffer) {
-    return ethers.keccak256(publicKey);
 }
 
 export function signInputText(
