@@ -144,7 +144,10 @@ export function buildInputText(
 
     const signature = signInputText(sender, contractAddress, functionSelector, ctInt);
 
-    return {ctInt, signature}
+    return {
+        ciphertext: ctInt,
+        signature: signature
+    }
 }
 
 export function buildStringInputText(
@@ -175,7 +178,7 @@ export function buildStringInputText(
             functionSelector
         )
 
-        inputText.ciphertext.value.push(it.ctInt)
+        inputText.ciphertext.value.push(it.ciphertext)
         inputText.signature.push(it.signature)
     }
 
