@@ -1,5 +1,5 @@
 import forge from 'node-forge'
-import {BaseWallet, ethers, getBytes, SigningKey, solidityPackedKeccak256} from "ethers"
+import {BaseWallet, ethers, getAddress, getBytes, SigningKey, solidityPackedKeccak256} from "ethers"
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
@@ -170,10 +170,13 @@ export function buildInputText(
 
     const signature = signInputText(sender, contractAddress, functionSelector, ctInt);
 
-    return {ctInt, signature}
+    return {
+        ciphertext: ctInt,
+        signature: signature
+    }
 }
 
-export async function buildStringInputText(
+export function buildStringInputText(
     plaintext: string,
     sender: { wallet: BaseWallet; userKey: string },
     contractAddress: string,
@@ -183,14 +186,73 @@ export async function buildStringInputText(
 
     let encodedStr = encoder.encode(plaintext)
 
-    let encryptedStr = new Array<{ ciphertext: bigint, signature: Uint8Array }>(plaintext.length)
-
-    for (let i = 0; i < plaintext.length; i++) {
-        const {ctInt, signature} = buildInputText(BigInt(encodedStr[i]), sender, contractAddress, functionSelector)
-        encryptedStr[i] = {ciphertext: ctInt, signature}
+    const inputText = {
+        ciphertext: { value: new Array<bigint> },
+        signature: new Array<Uint8Array>
     }
 
-    return encryptedStr
+    for (let i = 0; i < encodedStr.length / 8; i++) {
+        const startIdx = i * 8
+        const endIdx = Math.min(startIdx + 8, encodedStr.length)
+
+        const byteArr = new Uint8Array([...encodedStr.slice(startIdx, endIdx), ...new Uint8Array(8 - (endIdx - startIdx))])
+
+        const it = buildInputText(
+            decodeUint(byteArr),
+            sender,
+            contractAddress,
+            functionSelector
+        )
+
+        inputText.ciphertext.value.push(it.ciphertext)
+        inputText.signature.push(it.signature)
+    }
+
+    return inputText
+}
+
+export function buildAddressInputText(
+    plaintext: string,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+) {
+    // consider improving address validation
+    if (plaintext.substring(0, 2) !== '0x' || plaintext.length !== 42) {
+        throw new Error("Invalid address")
+    }
+
+    const it1 = buildInputText(
+        BigInt("0x" + plaintext.substring(2, 18)), // bytes 1 - 8
+        sender,
+        contractAddress,
+        functionSelector
+    )
+    const it2 = buildInputText(
+        BigInt("0x" + plaintext.substring(18, 34)), // bytes 9 - 16
+        sender,
+        contractAddress,
+        functionSelector
+    )
+    const it3 = buildInputText(
+        BigInt("0x" + plaintext.substring(34, 42)), // bytes 17 - 20
+        sender,
+        contractAddress,
+        functionSelector
+    )
+
+   const inputText = {
+       ciphertext: {
+           ct1: it1.ciphertext,
+           ct2: it2.ciphertext,
+           ct3: it3.ciphertext
+       },
+       signature1: it1.signature,
+       signature2: it2.signature,
+       signature3: it3.signature
+   }
+
+   return inputText
 }
 
 export function decryptUint(ciphertext: bigint, userKey: string): bigint {
@@ -217,16 +279,40 @@ export function decryptUint(ciphertext: bigint, userKey: string): bigint {
     return decodeUint(decryptedMessage)
 }
 
-export function decryptString(ciphertext: Array<bigint>, userKey: string): string {
-    let decryptedStr = new Array<number>(ciphertext.length)
+export function decryptString(ciphertext: { value: bigint[] }, userKey: string): string {
+    let encodedStr = new Uint8Array()
 
-    for (let i = 0; i < ciphertext.length; i++) {
-        decryptedStr[i] = Number(decryptUint(ciphertext[i], userKey))
+    for (let i = 0; i < ciphertext.value.length; i++) {
+        const decrypted = decryptUint(ciphertext.value[i], userKey)
+        
+        encodedStr = new Uint8Array([...encodedStr, ...encodeUint(decrypted)])
     }
 
-    let decoder = new TextDecoder()
+    const decoder = new TextDecoder()
 
-    return decoder.decode(new Uint8Array(decryptedStr))
+    return decoder
+        .decode(encodedStr)
+        .replace(/\0/g, '')
+}
+
+export function decryptAddress(ciphertext: { ct1: bigint, ct2: bigint, ct3: bigint }, userKey: string): string {
+    let addr = '0x'
+    
+    let decrypted: bigint
+    
+    decrypted = decryptUint(ciphertext.ct1, userKey)
+
+    addr += decrypted.toString(16).padStart(16, '0') // 8 bytes is 16 characters
+
+    decrypted = decryptUint(ciphertext.ct2, userKey)
+
+    addr += decrypted.toString(16).padStart(16, '0') // 8 bytes is 16 characters
+
+    decrypted = decryptUint(ciphertext.ct3, userKey)
+
+    addr += decrypted.toString(16).padStart(8, '0') // 4 bytes is 8 characters
+
+    return getAddress(addr)
 }
 
 export function generateAesKey(): string {

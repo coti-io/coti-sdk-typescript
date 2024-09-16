@@ -20,7 +20,7 @@ export class ConfidentialAccount {
         return decryptUint(ciphertextValue, this.userKey)
     }
 
-    public decryptString(ciphertextValue: bigint[]) {
+    public decryptString(ciphertextValue: { value: bigint[] }) {
         return decryptString(ciphertextValue, this.userKey)
     }
 
