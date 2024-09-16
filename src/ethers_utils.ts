@@ -29,7 +29,7 @@ export async function getAccountBalance(address: string, provider: Provider) {
     return provider.getBalance(address);
 }
 
-export function initEtherProvider(rpcUrl: string = "https://devnet.coti.io/rpc") {
+export function initEtherProvider(rpcUrl: string = "https://testnet.coti.io/rpc") {
     return new JsonRpcProvider(rpcUrl)
 }
 
