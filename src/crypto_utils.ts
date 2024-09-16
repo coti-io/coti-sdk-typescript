@@ -97,6 +97,32 @@ export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
     return userKey.join("")
 }
 
+export function recoverUserKey(privateKey: Uint8Array, encryptedKeyShare0: string, encryptedKeyShare1: string): string {
+    const decryptedKeyShare0: string = decryptRSA(privateKey, encryptedKeyShare0);
+    const decryptedKeyShare1: string = decryptRSA(privateKey, encryptedKeyShare1);
+
+
+    const bufferKeyShare0 = encodeKey(decryptedKeyShare0)
+    const bufferKeyShare1 = encodeKey(decryptedKeyShare1)
+    const aesKeyBytes = new Uint8Array(BLOCK_SIZE)
+
+    for (let i = 0; i < BLOCK_SIZE; i++) {
+        aesKeyBytes[i] = bufferKeyShare0[i] ^ bufferKeyShare1[i];
+    }
+    const aesKey: Array<string> = []
+
+    let byte = ''
+
+    for (let i = 0; i < aesKeyBytes.length; i++) {
+        byte = aesKeyBytes[i].toString(HEX_BASE).padStart(2, '0') // ensure that the zero byte is represented using two digits
+
+        aesKey.push(byte)
+    }
+
+    return aesKey.join("")
+}
+
+
 export function sign(message: string, privateKey: string) {
     const key = new SigningKey(privateKey)
     const sig = key.sign(message)
