@@ -1,5 +1,5 @@
 import forge from 'node-forge'
-import {BaseWallet, ethers, getBytes, SigningKey, solidityPackedKeccak256} from "ethers"
+import {BaseWallet, ethers, getAddress, getBytes, isAddress, SigningKey, solidityPackedKeccak256} from "ethers"
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
@@ -189,6 +189,49 @@ export function buildStringInputText(
     return inputText
 }
 
+export function buildAddressInputText(
+    plaintext: string,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+) {
+    if (!isAddress(plaintext)) {
+        throw new Error("Plaintext must be a valid address.")
+    }
+
+    const it1 = buildInputText(
+        BigInt("0x" + plaintext.substring(2, 18)), // bytes 1 - 8
+        sender,
+        contractAddress,
+        functionSelector
+    )
+    const it2 = buildInputText(
+        BigInt("0x" + plaintext.substring(18, 34)), // bytes 9 - 16
+        sender,
+        contractAddress,
+        functionSelector
+    )
+    const it3 = buildInputText(
+        BigInt("0x" + plaintext.substring(34, 42)), // bytes 17 - 20
+        sender,
+        contractAddress,
+        functionSelector
+    )
+
+   const inputText = {
+       ciphertext: {
+           ct1: it1.ciphertext,
+           ct2: it2.ciphertext,
+           ct3: it3.ciphertext
+       },
+       signature1: it1.signature,
+       signature2: it2.signature,
+       signature3: it3.signature
+   }
+
+   return inputText
+}
+
 export function decryptUint(ciphertext: bigint, userKey: string): bigint {
     // Convert ciphertext to Uint8Array
     let ctArray = new Uint8Array()
@@ -217,7 +260,7 @@ export function decryptString(ciphertext: { value: bigint[] }, userKey: string):
     let encodedStr = new Uint8Array()
 
     for (let i = 0; i < ciphertext.value.length; i++) {
-        const decrypted = decryptUint(BigInt(ciphertext.value[i]), userKey)
+        const decrypted = decryptUint(ciphertext.value[i], userKey)
         
         encodedStr = new Uint8Array([...encodedStr, ...encodeUint(decrypted)])
     }
@@ -227,6 +270,26 @@ export function decryptString(ciphertext: { value: bigint[] }, userKey: string):
     return decoder
         .decode(encodedStr)
         .replace(/\0/g, '')
+}
+
+export function decryptAddress(ciphertext: { ct1: bigint, ct2: bigint, ct3: bigint }, userKey: string): string {
+    let addr = '0x'
+    
+    let decrypted: bigint
+    
+    decrypted = decryptUint(ciphertext.ct1, userKey)
+
+    addr += decrypted.toString(16).padStart(16, '0') // 8 bytes is 16 characters
+
+    decrypted = decryptUint(ciphertext.ct2, userKey)
+
+    addr += decrypted.toString(16).padStart(16, '0') // 8 bytes is 16 characters
+
+    decrypted = decryptUint(ciphertext.ct3, userKey)
+
+    addr += decrypted.toString(16).padStart(8, '0') // 4 bytes is 8 characters
+
+    return getAddress(addr)
 }
 
 export function generateAesKey(): string {

@@ -1,9 +1,11 @@
 import { Wallet } from 'ethers'
 import {
+    buildAddressInputText,
     buildInputText,
     buildStringInputText,
     decodeUint,
     decrypt,
+    decryptAddress,
     decryptRSA,
     decryptString,
     decryptUint,
@@ -426,6 +428,69 @@ describe('crypto_utils', () => {
         const PLAINTEXT = 'Hello, world!'
 
         const plaintext = decryptString(CIPHERTEXT, USER_KEY)
+
+        expect(plaintext).toEqual(PLAINTEXT)
+    })
+
+    test('buildAddressInputText - build input text from an arbitrary address', () => {
+        const PRIVATE_KEY = '0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'
+        const USER_KEY = '4b0418c1543dbe70f215175bcddfac42'
+        const CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000001'
+        const FUNCTION_SELECTOR = '0x11223344'
+        const PLAINTEXT = '0xc0ffee254729296a45a3885639AC7E10F9d54979'
+        const CIPHERTEXT = {
+            ct1: 57746566665648186615896636477407589926815064820721185638918731479700437094224n,
+            ct2: 57746566665648186612828207168301157696292953115220848200251829797438968713040n,
+            ct3: 57746566665648186614314868401766501073179498565984802815167605437801327120208n,
+        }
+        const SIGNATURE_1 = new Uint8Array([
+            199,  62,  88,  96,  21, 229,  59, 251, 139,  82,  97,
+             58,  80, 170, 180, 202,  33,   4, 191,   0, 243,  73,
+             80, 190, 185, 212, 218,  92,  26,  21,   3,  96,  59,
+             81,  66, 165, 248,  67, 213,  67, 121, 188, 208,  66,
+              8, 165, 133, 113,  66,  51, 103,  21, 205,  41, 101,
+            134, 212, 148, 214, 192, 229, 127, 101, 139,   0
+        ])
+        const SIGNATURE_2 = new Uint8Array([
+            183, 184, 157, 140, 192,  49, 223,  89,  22,  36, 188,
+            247,  95,  12, 106,  27, 181, 184, 177, 225, 203,  18,
+            182, 141,   9,   5, 153, 106, 205, 121, 109, 217,  17,
+             14,  15,  82,   5, 130, 182, 140,   7,  58, 227, 159,
+             79,  28,  83,  57, 192, 142,   7,  70, 253, 114,  10,
+            219, 187,   2, 117, 114,  72,   7,   4, 235,   1
+        ])
+        const SIGNATURE_3 = new Uint8Array([
+            168, 150,   6, 165,  30, 219, 206,  10, 188, 110, 127,
+            254, 247, 100, 165, 255, 205,  41, 191, 112, 101, 182,
+            138,  77, 180,  79,  23,  74,  93, 118,  75, 138,  82,
+            185, 175, 209, 115,  33, 182,  29,  60,  90, 174,  90,
+             96, 195, 196, 216,  89, 140, 155, 149, 136,  30, 181,
+             79, 217, 152,  25, 141, 175,  81, 228,  34,   0
+        ])
+
+        const {ciphertext, signature1, signature2, signature3 } = buildAddressInputText(
+            PLAINTEXT,
+            { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+            CONTRACT_ADDRESS,
+            FUNCTION_SELECTOR
+        )
+
+        expect(ciphertext).toEqual(CIPHERTEXT)
+        expect(signature1).toEqual(SIGNATURE_1)
+        expect(signature2).toEqual(SIGNATURE_2)
+        expect(signature3).toEqual(SIGNATURE_3)
+    })
+
+    test('decryptAddress - decrypt ciphertext of an arbitrary address', () => {
+        const USER_KEY = '4b0418c1543dbe70f215175bcddfac42'
+        const CIPHERTEXT = {
+            ct1: 57746566665648186615896636477407589926815064820721185638918731479700437094224n,
+            ct2: 57746566665648186612828207168301157696292953115220848200251829797438968713040n,
+            ct3: 57746566665648186614314868401766501073179498565984802815167605437801327120208n,
+        }
+        const PLAINTEXT = '0xc0ffee254729296a45a3885639AC7E10F9d54979'
+
+        const plaintext = decryptAddress(CIPHERTEXT, USER_KEY)
 
         expect(plaintext).toEqual(PLAINTEXT)
     })

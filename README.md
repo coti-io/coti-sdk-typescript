@@ -200,7 +200,21 @@ Builds input text by encrypting the plaintext and signing it.
 
 - `inputText`: An object of the form { "ciphertext": { "value": int[] }, "signature": bytes[] }
 
-### 5. `decryptUint(ciphertext: bigint, userKey: string)`
+### 5.`buildAddressInputText((plaintext: string, sender: { wallet: BaseWallet; userKey: string }, contractAddress: string, functionSelector: string)`
+
+Builds input text by encrypting the plaintext and signing it.
+**Parameters:**
+
+- `plaintext`: The plaintext string message.
+- `sender`: The sender's wallet and userKey.
+- `contractAddress`: The contract address.
+- `functionSelector`: The function signature.
+
+**Returns:**
+
+- `inputText`: An object of the form { "ciphertext": { "ct1": int, "ct2": int, "ct3": int }, "signature1": bytes, "signature2": bytes, "signature3": bytes }
+
+### 6. `decryptUint(ciphertext: bigint, userKey: string)`
 
 Decrypts a value stored in a contract using a user key.
 
@@ -213,7 +227,7 @@ Decrypts a value stored in a contract using a user key.
 
 - `result`: The decrypted value.
 
-### 6. `decryptString(ciphertext: Array<bigint>, userKey: string)`
+### 7. `decryptString(ciphertext: Array<bigint>, userKey: string)`
 
 Decrypts a value stored in a contract using a user key.
 
@@ -225,6 +239,19 @@ Decrypts a value stored in a contract using a user key.
 **Returns:**
 
 - `result`: The decrypted string.
+
+### 8. `decryptAddress(ciphertext: Array<bigint>, userKey: string)`
+
+Decrypts an address stored in a contract and encrypted using a user key.
+
+**Parameters:**
+
+- `ciphertext`: An object of the form { "ct1": int, "ct2": int, "ct3": int } where each cell holds a portion of the address encrypted
+- `userKey`: The user's AES key.
+
+**Returns:**
+
+- `result`: The decrypted address.
 
 # ether_utils.ts
 
