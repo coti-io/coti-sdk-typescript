@@ -1,4 +1,4 @@
-import {ethers, JsonRpcProvider, Provider, toNumber, TransactionRequest, Wallet,} from "ethers";
+import {ethers, JsonRpcProvider, Provider, toNumber, TransactionRequest, Wallet} from "ethers";
 
 export async function printNetworkDetails(provider: Provider) {
     if (!await isProviderConnected(provider)) {

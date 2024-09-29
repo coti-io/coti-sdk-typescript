@@ -8,11 +8,14 @@
   ],
   "scripts": {
     "prepare": "tsc",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "jest"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.12",
     "@types/node-forge": "^1.3.11",
     "ethers": "^6.12.1",
+    "ts-jest": "^29.2.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   },

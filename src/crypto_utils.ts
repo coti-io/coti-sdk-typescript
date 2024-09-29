@@ -3,6 +3,7 @@ import {BaseWallet, ethers, getBytes, SigningKey, solidityPackedKeccak256} from 
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
+const EIGHT_BYTES = 8
 
 export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: Uint8Array; r: Uint8Array } {
     // Ensure plaintext is smaller than 128 bits (16 bytes)
@@ -14,7 +15,7 @@ export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: U
     const r = forge.random.getBytesSync(BLOCK_SIZE)
 
     // Get the encrypted random value 'r'
-    const encryptedR = encryptRandomNumber(r, key)
+    const encryptedR = encryptNumber(r, key)
 
     // Pad the plaintext with zeros if it's smaller than the block size
     const plaintextPadded = new Uint8Array([...new Uint8Array(BLOCK_SIZE - plaintext.length), ...plaintext])
@@ -43,7 +44,7 @@ export function decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array):
     }
 
     // Get the encrypted random value 'r'
-    const encryptedR = encryptRandomNumber(r, key)
+    const encryptedR = encryptNumber(r, key)
 
     // XOR the encrypted random value 'r' with the ciphertext to obtain the plaintext
     const plaintext = new Uint8Array(BLOCK_SIZE)
@@ -125,8 +126,8 @@ export function buildInputText(
     contractAddress: string,
     functionSelector: string
 ) {
-    if (plaintext >= BigInt(2) ** BigInt(128)) {
-        throw new RangeError("Plaintext size must be 128 bits or smaller.")
+    if (plaintext >= BigInt(2) ** BigInt(64)) {
+        throw new RangeError("Plaintext size must be 64 bits or smaller.")
     }
 
     // Convert the plaintext to bytes
@@ -158,6 +159,7 @@ export function buildStringInputText(
 ) {
     let encoder = new TextEncoder()
 
+    // Encode the plaintext string into bytes (UTF-8 encoded)        
     let encodedStr = encoder.encode(plaintext)
 
     const inputText = {
@@ -165,14 +167,16 @@ export function buildStringInputText(
         signature: new Array<Uint8Array>
     }
 
-    for (let i = 0; i < encodedStr.length / 8; i++) {
-        const startIdx = i * 8
-        const endIdx = Math.min(startIdx + 8, encodedStr.length)
+    // Process the encoded string in chunks of 8 bytes
+    // We use 8 bytes since we will use ctUint64 to store
+    // each chunk of 8 characters
+    for (let startIdx = 0; startIdx < encodedStr.length; startIdx += EIGHT_BYTES) {
+        const endIdx = Math.min(startIdx + EIGHT_BYTES, encodedStr.length)
 
-        const byteArr = new Uint8Array([...encodedStr.slice(startIdx, endIdx), ...new Uint8Array(8 - (endIdx - startIdx))])
+        const byteArr = new Uint8Array([...encodedStr.slice(startIdx, endIdx), ...new Uint8Array(EIGHT_BYTES - (endIdx - startIdx))]) // pad the end of the string with zeros if needed
 
         const it = buildInputText(
-            decodeUint(byteArr),
+            decodeUint(byteArr), // convert the 8-byte hex string into a number
             sender,
             contractAddress,
             functionSelector
@@ -270,7 +274,7 @@ export function decodeUint(plaintextBytes: Uint8Array): bigint {
     return BigInt("0x" + plaintext.join(""))
 }
 
-function encryptRandomNumber(r: string | Uint8Array, key: Uint8Array) {
+export function encryptNumber(r: string | Uint8Array, key: Uint8Array) {
     // Ensure key size is 128 bits (16 bytes)
     if (key.length != BLOCK_SIZE) {
         throw new RangeError("Key size must be 128 bits.")
