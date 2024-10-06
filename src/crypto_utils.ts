@@ -1,5 +1,6 @@
 import forge from 'node-forge'
-import {BaseWallet, ethers, getBytes, SigningKey, solidityPackedKeccak256} from "ethers"
+import {BaseWallet, getBytes, SigningKey, solidityPackedKeccak256} from "ethers"
+import { ctString, ctUint, itString, itUint } from './types';
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
@@ -88,8 +89,8 @@ export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
     for (let i = 0; i < decryptedBytes.length; i++) {
         userKey.push(
             decryptedBytes[i]
-            .toString(16)
-            .padStart(2, '0') // make sure each cell is one byte
+                .toString(16)
+                .padStart(2, '0') // make sure each cell is one byte
         )
     }
 
@@ -100,10 +101,6 @@ export function sign(message: string, privateKey: string) {
     const key = new SigningKey(privateKey)
     const sig = key.sign(message)
     return new Uint8Array([...getBytes(sig.r), ...getBytes(sig.s), ...getBytes(`0x0${sig.v - 27}`)])
-}
-
-export function keccak256(publicKey: Buffer) {
-    return ethers.keccak256(publicKey);
 }
 
 export function signInputText(
@@ -125,7 +122,7 @@ export function buildInputText(
     sender: { wallet: BaseWallet; userKey: string },
     contractAddress: string,
     functionSelector: string
-) {
+): itUint {
     if (plaintext >= BigInt(2) ** BigInt(64)) {
         throw new RangeError("Plaintext size must be 64 bits or smaller.")
     }
@@ -156,7 +153,7 @@ export function buildStringInputText(
     sender: { wallet: BaseWallet; userKey: string },
     contractAddress: string,
     functionSelector: string
-) {
+): itString {
     let encoder = new TextEncoder()
 
     // Encode the plaintext string into bytes (UTF-8 encoded)        
@@ -164,7 +161,7 @@ export function buildStringInputText(
 
     const inputText = {
         ciphertext: { value: new Array<bigint> },
-        signature: new Array<Uint8Array>
+        signature: new Array<Uint8Array | string>
     }
 
     // Process the encoded string in chunks of 8 bytes
@@ -189,7 +186,7 @@ export function buildStringInputText(
     return inputText
 }
 
-export function decryptUint(ciphertext: bigint, userKey: string): bigint {
+export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
     // Convert ciphertext to Uint8Array
     let ctArray = new Uint8Array()
 
@@ -229,7 +226,7 @@ export function decryptString(ciphertext: { value: bigint[] }, userKey: string):
         .replace(/\0/g, '')
 }
 
-export function generateAesKey(): string {
+export function generateRandomAesKeySizeNumber(): string {
     return forge.random.getBytesSync(BLOCK_SIZE)
 }
 
