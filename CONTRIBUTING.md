@@ -1,7 +1,7 @@
 
-# Contributing to COTI SDK TypeScript Examples
+# Contributing to COTI TypeScript SDK 
 
-Thank you for your interest in contributing to the COTI SDK TypeScript project! We welcome contributions from the community and appreciate your efforts to improve our project.
+Thank you for your interest in contributing to the COTI TypeScript SDK project! We welcome contributions from the community and appreciate your efforts to improve our project.
 
 ## Table of Contents
 
@@ -24,11 +24,11 @@ Please note that this project is governed by our [Code of Conduct](CODE_OF_CONDU
 
 ### Reporting Bugs
 
-If you encounter any bugs, please report them by [opening an issue](https://github.com/coti-io/coti-sdk-typescript-examples/issues/new) on GitHub. Include as much detail as possible, including steps to reproduce the bug, the environment you encountered it in, and any other relevant information.
+If you encounter any bugs, please report them by [opening an issue](https://github.com/coti-io/coti-sdk-typescript/issues/new) on GitHub. Include as much detail as possible, including steps to reproduce the bug, the environment you encountered it in, and any other relevant information.
 
 ### Suggesting Enhancements
 
-If you have ideas for new features or improvements, feel free to suggest them by [opening an issue](https://github.com/coti-io/coti-sdk-typescript-examples/issues/new) on GitHub. Please provide a clear description of the proposed enhancement and why it would be beneficial to the project.
+If you have ideas for new features or improvements, feel free to suggest them by [opening an issue](https://github.com/coti-io/coti-sdk-typescript/issues/new) on GitHub. Please provide a clear description of the proposed enhancement and why it would be beneficial to the project.
 
 ### Contributing Code
 
@@ -38,8 +38,8 @@ We welcome code contributions! To get started, follow these steps:
 
 2. **Clone your fork**: 
    ```sh
-   git clone https://github.com/your-username/coti-sdk-typescript-examples.git
-   cd coti-sdk-typescript-examples
+   git clone https://github.com/your-username/coti-sdk-typescript.git
+   cd coti-sdk-typescript
    ```
 
 3. **Create a branch**: 
