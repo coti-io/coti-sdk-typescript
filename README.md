@@ -1,11 +1,11 @@
-# COTI V2 Confidentiality Preserving L2 | SDKs and Examples
+# COTI Privacy  Preserving L2 | SDKs and Examples
 
-All repositories specified below contain smart contracts that implement confidentiality features using the COTI V2
+All repositories specified below contain smart contracts that implement confidentiality features using the COTI
 protocol.
 The contracts provide examples for various use cases, such as Non-Fungible Tokens (NFTs), ERC20 tokens, Auction, and
 Identity management.
 
-These contracts demonstrate how to leverage the confidentiality features of the COTI V2 protocol to enhance privacy and
+These contracts demonstrate how to leverage the confidentiality features of the COTI protocol to enhance privacy and
 security in decentralized applications.
 The contracts are of Solidity and can be compiled and deployed using popular development tools like Hardhat and
 Foundry (Work in progress).
@@ -48,182 +48,155 @@ The following contracts are available in each of the packages:
 
 🤖 To request devnet/testnet funds use our [faucet](https://faucet.coti.io)
 
-# COTI v2 Typescript SDK
+# COTI Typescript SDK
 
 > [!NOTE]
 > Please refer to the latest [tags](https://github.com/coti-io/coti-sdk-typescript/tags) to find the most stable version
 > to use.
 > All tagged versions are available to install via [npmjs](https://www.npmjs.com/package/@coti-io/coti-sdk-typescript)
 
-The COTI Typescript SDK is composed of two main components:
+The COTI Typescript SDK is mainly `crypto_utils.ts`: used for cryptographic operations.
 
-1. The `crypto_utils.ts`: used for cryptographic operations.
+(Ethers methods and mandatory wallet management operations, previously ethers_utils.ts, moved to [coti-ethers](https://github.com/coti-io/coti-ethers/))
 
-2. The `ether_utils.ts` : used for ethers related operations
+# CRYPTO Utilities (crypto_utils.ts)
 
-3. Typescript classes to interact with the COTI network. These are located in the [src/account](src/account) directory.
-   The following are provided:
+This TypeScript library provides a set of encryption, decryption, and cryptographic utilities, including RSA and AES encryption, message signing, and key handling functions. The utilities are primarily designed to work with cryptographic operations for secure communication and message signing, particularly within Ethereum smart contracts or similar environments.
 
-* `confidential-account.ts`: designed to handle confidential data by providing methods for encryption and decryption, as
-  well as onboarding new wallets. It utilizes cryptographic functions to ensure the security of data on the COTI
-  network.
+## Features
 
-* `onboard_contract.ts`: interact with the onboarding smart contract. The address and ABI allow a web3-enabled
-  application to connect to the contract, listen for events, and call the `OnboardAccount` function to onboard new
-  accounts.
+- **AES encryption** with ECB mode for data of fixed block sizes.
+- **RSA key pair generation**, encryption, and decryption using RSA-OAEP with SHA-256.
+- **Signing of Ethereum transactions** using the `ethers` library's signing mechanisms.
+- Utilities for encoding/decoding, padding, and cryptographic data manipulation.
 
-* `onboard.ts`: facilitates the onboarding of new users by generating cryptographic keys, signing data, and interacting
-  with a blockchain smart contract. The `onboard` function automates the entire process, ensuring secure onboarding and
-  key management.
+## Installation
 
-# crypto_utils.ts
+Ensure you have Node.js and npm installed. Then, install the necessary dependencies:
 
-This TypeScript library, `crypto_utils.ts`, provides cryptographic functions to interact with the COTI network. Below is
-an overview of its components and functions:
-
-## Dependencies
-
-- `crypto`: Node.js built-in module for cryptographic operations.
-- `ethers`: Ethereum library for various utilities, including `solidityPackedKeccak256`, `SigningKey`, `getBytes`,
-  and `BaseWallet`.
-
-## Constants
-
-- `block_size`: AES block size in bytes (16).
-- `hexBase`: Base for hexadecimal representation (16).
+```bash
+npm install node-forge ethers
+```
 
 ## Functions
 
-### AES Encryption/Decryption
+### `encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: Uint8Array; r: Uint8Array }`
 
-### 1. `encrypt(key: Buffer, plaintext: Buffer)`
+Encrypts a given plaintext using the provided AES key. The plaintext is XORed with an encrypted random value.
 
-Encrypts the given plaintext using AES in ECB mode with the provided key.
+- **Parameters:**
+  - `key`: The AES encryption key (16 bytes).
+  - `plaintext`: The data to be encrypted (must be 16 bytes or smaller).
+- **Returns:** An object containing:
+  - `ciphertext`: The encrypted data.
+  - `r`: The random value used in the encryption process.
 
-- **Parameters**:
-    - `key`: 128-bit (16 bytes) key for AES encryption.
-    - `plaintext`: Data to be encrypted (must be 128 bits or smaller).
-- **Returns**:
-    - `ciphertext`: Encrypted data.
-    - `r`: Random value used during encryption.
+### `decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array): Uint8Array`
 
-### 2. `decrypt(key: Buffer, r: Buffer, ciphertext: Buffer)`
+Decrypts a ciphertext using the provided AES key and random value `r`.
 
-Decrypts the given ciphertext using AES in ECB mode with the provided key and random value.
+- **Parameters:**
+  - `key`: The AES encryption key (16 bytes).
+  - `r`: The random value used during encryption (16 bytes).
+  - `ciphertext`: The encrypted data (16 bytes).
+- **Returns:** The decrypted plaintext.
 
-- **Parameters**:
-    - `key`: 128-bit (16 bytes) key for AES decryption.
-    - `r`: Random value used during encryption.
-    - `ciphertext`: Encrypted data to be decrypted.
-- **Returns**:
-    - `plaintext`: Decrypted data.
+### `generateRSAKeyPair(): { publicKey: Uint8Array; privateKey: Uint8Array }`
 
-### 3. `generateAesKey()`
+Generates a new RSA key pair (2048 bits) and returns the keys in DER format.
+
+- **Returns:** An object containing:
+  - `publicKey`: The RSA public key (DER-encoded).
+  - `privateKey`: The RSA private key (DER-encoded).
+
+### `decryptRSA(privateKey: Uint8Array, ciphertext: string): string`
+
+Decrypts an RSA-encrypted ciphertext using the provided private key.
+
+- **Parameters:**
+  - `privateKey`: The RSA private key (DER-encoded).
+  - `ciphertext`: The encrypted ciphertext as a hex string.
+- **Returns:** The decrypted message as a string.
+
+### `sign(message: string, privateKey: string): Uint8Array`
+
+Signs a message using the provided Ethereum private key.
+
+- **Parameters:**
+  - `message`: The message to be signed.
+  - `privateKey`: The Ethereum private key.
+- **Returns:** A signature as a `Uint8Array` containing `r`, `s`, and `v` values.
+
+### `signInputText(sender, contractAddress, functionSelector, ct: bigint): Uint8Array`
+
+Generates a signed message hash for Ethereum contract interactions.
+
+- **Parameters:**
+  - `sender`: The sender's information containing their wallet and user key.
+  - `contractAddress`: The Ethereum contract address.
+  - `functionSelector`: The function selector (bytes4) for the contract function.
+  - `ct`: The ciphertext (big integer).
+- **Returns:** A signature for the provided message.
+
+### `buildInputText(plaintext: bigint, sender, contractAddress, functionSelector): itUint`
+
+Encrypts a plaintext (up to 64 bits) and generates a signed transaction payload.
+
+- **Parameters:**
+  - `plaintext`: The data to be encrypted (must be smaller than 64 bits).
+  - `sender`: The sender's information containing their wallet and user key.
+  - `contractAddress`: The Ethereum contract address.
+  - `functionSelector`: The function selector for the contract function.
+- **Returns:** An `itUint` object containing the encrypted ciphertext and signature.
+
+### `buildStringInputText(plaintext: string, sender, contractAddress, functionSelector): itString`
+
+Encrypts a plaintext string and generates a signed transaction payload.
+
+- **Parameters:**
+  - `plaintext`: The data to be encrypted (string).
+  - `sender`: The sender's information containing their wallet and user key.
+  - `contractAddress`: The Ethereum contract address.
+  - `functionSelector`: The function selector for the contract function.
+- **Returns:** An `itString` object containing the encrypted ciphertext and signature.
+
+### `decryptUint(ciphertext: ctUint, userKey: string): bigint`
+
+Decrypts an AES-encrypted ciphertext and returns the original plaintext as a `bigint`.
+
+- **Parameters:**
+  - `ciphertext`: The encrypted ciphertext.
+  - `userKey`: The user key for AES decryption.
+- **Returns:** The decrypted plaintext as a `bigint`.
+
+### `decryptString(ciphertext: { value: bigint[] }, userKey: string): string`
+
+Decrypts an AES-encrypted ciphertext representing a string.
+
+- **Parameters:**
+  - `ciphertext`: An object containing the encrypted ciphertext as a list of bigints.
+  - `userKey`: The user key for AES decryption.
+- **Returns:** The decrypted plaintext as a string.
+
+### `generateRandomAesKeySizeNumber(): string`
 
 Generates a random 128-bit AES key.
 
-**Returns:**
+- **Returns:** A string containing the random bytes.
 
-- `key`: The generated 128-bit AES key.
+### Utility Functions
 
-### RSA Key Management
+- **`encodeString(str: string): Uint8Array`**: Converts a string to a `Uint8Array` encoded with the hexadecimal representation of each character.
+- **`encodeKey(userKey: string): Uint8Array`**: Encodes a user key (hex string) to a `Uint8Array`.
+- **`encodeUint(plaintext: bigint): Uint8Array`**: Converts a bigint to a `Uint8Array`.
+- **`decodeUint(plaintextBytes: Uint8Array): bigint`**: Converts a `Uint8Array` to a bigint.
+- **`encryptNumber(r: string | Uint8Array, key: Uint8Array): Uint8Array`**: Encrypts a random value `r` using AES in ECB mode.
 
-### 1. `generateRSAKeyPair()`
+## Constants
 
-Generates a new RSA key pair.
+- `BLOCK_SIZE`: AES block size in bytes (16).
+- `HEX_BASE`: Base used for hexadecimal conversion (16).
+- `EIGHT_BYTES`: Constant representing 8 bytes (used for processing data in chunks).
 
-- **Returns**:
-    - `publicKey`: RSA public key in DER format.
-    - `privateKey`: RSA private key in DER format.
-
-### 2. `decryptRSA(privateKey: Buffer, ciphertext: Buffer)`
-
-Decrypts the given ciphertext using RSA-OAEP with the provided private key.
-
-- **Parameters**:
-    - `privateKey`: RSA private key in PEM format.
-    - `ciphertext`: Data to be decrypted.
-- **Returns**:
-    - Decrypted data.
-
-### Input text decryption/encryption and Signing
-
-### 1. `sign(message: string, privateKey: string)`
-
-Signs the given message using the provided private key.
-
-- **Parameters**:
-    - `message`: Message to be signed.
-    - `privateKey`: Signer's private key.
-- **Returns**:
-    - Signature as a concatenation of `r`, `s`, and `v` values.
-
-### 2. `signInputText(wallet: BaseWallet, userKey: string, contractAddress: string , functionSelector: string, ct: Buffer)`
-
-Signs the given message using the provided private key.
-
-- **Parameters**:
-    - `wallet`: an ether wallet to sign the ether transaction.
-    - `privateKey`: Signer's private key.
-    - `contractAddress`: the contract address.
-    - `functionSelector`: the function signature.
-    - `ct`: The ciphertext.
-- **Returns**:
-    - `signature`: The generated signature.
-
-### 3.`buildInputText(plaintext: bigint, sender: { wallet: BaseWallet; userKey: string }, contractAddress: string, functionSelector: string)`
-
-Builds input text by encrypting the plaintext and signing it.
-**Parameters:**
-
-- `plaintext`: The plaintext message.
-- `sender`: The sender's wallet and userKey.
-- `contractAddress`: The contract address.
-- `functionSelector`: The function signature.
-
-**Returns:**
-
-- `intCipherText`: The integer representation of the ciphertext.
-- `signature`: The generated signature.
-
-### 4.`buildStringInputText((plaintext: string, sender: { wallet: BaseWallet; userKey: string }, contractAddress: string, functionSelector: string)`
-
-Builds input text by encrypting the plaintext and signing it.
-**Parameters:**
-
-- `plaintext`: The plaintext string message.
-- `sender`: The sender's wallet and userKey.
-- `contractAddress`: The contract address.
-- `functionSelector`: The function signature.
-
-**Returns:**
-
-- `inputText`: An object of the form { "ciphertext": { "value": int[] }, "signature": bytes[] }
-
-### 5. `decryptUint(ciphertext: bigint, userKey: string)`
-
-Decrypts a value stored in a contract using a user key.
-
-**Parameters:**
-
-- `ciphertext`: The value to be decrypted.
-- `userKey`: The user's AES key.
-
-**Returns:**
-
-- `result`: The decrypted value.
-
-### 6. `decryptString(ciphertext: Array<bigint>, userKey: string)`
-
-Decrypts a value stored in a contract using a user key.
-
-**Parameters:**
-
-- `ciphertext`: An object of the form { "value": int[] } where each cell holds up to 8 characters (padded at the end with zeroes) encrypted
-- `userKey`: The user's AES key.
-
-**Returns:**
-
-- `result`: The decrypted string.
 
 #### To report issues, please create a [github issue](https://github.com/coti-io/coti-sdk-typescript/issues)

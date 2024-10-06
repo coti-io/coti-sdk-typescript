@@ -160,8 +160,8 @@ export function buildStringInputText(
     let encodedStr = encoder.encode(plaintext)
 
     const inputText = {
-        ciphertext: { value: new Array<bigint> },
-        signature: new Array<Uint8Array | string>
+        ciphertext: { value: new Array<bigint>() },
+        signature: new Array<Uint8Array | string>()
     }
 
     // Process the encoded string in chunks of 8 bytes
