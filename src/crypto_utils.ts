@@ -236,7 +236,7 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
     return decodeUint(decryptedMessage)
 }
 
-export function decryptString(ciphertext: { value: bigint[] }, userKey: string): string {
+export function decryptString(ciphertext: ctString, userKey: string): string {
     let encodedStr = new Uint8Array()
 
     for (let i = 0; i < ciphertext.value.length; i++) {

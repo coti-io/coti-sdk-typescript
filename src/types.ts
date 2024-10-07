@@ -14,4 +14,4 @@ export type ctBool = bigint
 
 export type ctUint = bigint
 
-export type ctString = bigint[]
+export type ctString = { value: Array<bigint> }
