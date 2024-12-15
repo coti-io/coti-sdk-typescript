@@ -1,6 +1,6 @@
 {
   "name": "@coti-io/coti-sdk-typescript",
-  "version": "0.5.5",
+  "version": "1.0.4",
   "license": "Apache 2.0",
   "description": "A library for encryption, decryption and cryptographic utilities for the COTI blockchain.",
   "main": "dist/index.js",
@@ -11,10 +11,19 @@
   "author": "COTI Development",
   "repository": {
     "type": "git",
-     "url": "git://github.com/coti-io/coti-sdk-typescript.git"
+    "url": "git://github.com/coti-io/coti-sdk-typescript.git"
   },
   "homepage": "https://docs.coti.io/coti-v2-documentation/build-on-coti/tools/typescript-sdk",
-  "keywords": ["coti", "privacy", "ethereum", "blockchain", "web3", "garbled-circuits", "l2", "on-chain-compute"],
+  "keywords": [
+    "coti",
+    "privacy",
+    "ethereum",
+    "blockchain",
+    "web3",
+    "garbled-circuits",
+    "l2",
+    "on-chain-compute"
+  ],
   "scripts": {
     "prepare": "tsc",
     "build": "tsc",
