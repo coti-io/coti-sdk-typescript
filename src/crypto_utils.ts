@@ -1,6 +1,26 @@
 import forge from 'node-forge'
-import {BaseWallet, getBytes, SigningKey, solidityPackedKeccak256} from "ethers"
-import { ctString, ctUint, itString, itUint } from './types';
+import {
+    BaseWallet,
+    getBytes,
+    SigningKey,
+    solidityPackedKeccak256
+} from "ethers"
+import {
+    ctString,
+    ctUint8,
+    ctUint16,
+    ctUint32,
+    ctUint64,
+    ctUint128,
+    ctUint256,
+    itString,
+    itUint8,
+    itUint16,
+    itUint32,
+    itUint64,
+    itUint128,
+    itUint256
+} from './types';
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
@@ -143,12 +163,12 @@ export function signInputText(
     return sign(message, sender.wallet.privateKey);
 }
 
-export function buildInputText(
+function buildInputText(
     plaintext: bigint,
     sender: { wallet: BaseWallet; userKey: string },
     contractAddress: string,
     functionSelector: string
-): itUint {
+): itUint8 | itUint16 | itUint32 | itUint64 {
     if (plaintext >= BigInt(2) ** BigInt(64)) {
         throw new RangeError("Plaintext size must be 64 bits or smaller.")
     }
@@ -171,6 +191,92 @@ export function buildInputText(
     return {
         ciphertext: ctInt,
         signature: signature
+    }
+}
+
+export function buildUint8InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itUint8 {
+    return buildInputText(plaintext, sender, contractAddress, functionSelector)
+}
+
+export function buildUint16InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itUint16 {
+    return buildInputText(plaintext, sender, contractAddress, functionSelector)
+}
+
+export function buildUint32InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itUint32 {
+    return buildInputText(plaintext, sender, contractAddress, functionSelector)
+}
+
+export function buildUint64InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itUint64 {
+    return buildInputText(plaintext, sender, contractAddress, functionSelector)
+}
+
+export function buildUint128InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itUint128 {
+    // Convert to hex string and ensure it is 32 characters (16 bytes)
+    const hexString = plaintext.toString(16).padStart(32, '0');
+
+    // Split into two 8-byte (16-character) segments
+    const high = hexString.slice(0, 16);
+    const low = hexString.slice(16, 32);
+
+    const itHigh = buildInputText(BigInt(`0x${high}`), sender, contractAddress, functionSelector)
+    const itLow = buildInputText(BigInt(`0x${low}`), sender, contractAddress, functionSelector)
+
+    return {
+        ciphertext: {
+            high: itHigh.ciphertext,
+            low: itLow.ciphertext
+        },
+        signature: [itHigh.signature, itLow.signature]
+    }
+}
+
+export function buildUint256InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itUint256 {
+    // Convert to hex string and ensure it is 64 characters (32 bytes)
+    const hexString = plaintext.toString(16).padStart(64, '0');
+  
+    // Split into two 16-byte (-character) segments
+    const high = hexString.slice(0, 32);
+    const low = hexString.slice(32, 64);
+
+    const itHigh = buildUint128InputText(BigInt(`0x${high}`), sender, contractAddress, functionSelector)
+    const itLow = buildUint128InputText(BigInt(`0x${low}`), sender, contractAddress, functionSelector)
+
+    return {
+        ciphertext: {
+            high: itHigh.ciphertext,
+            low: itLow.ciphertext
+        },
+        signature: [itHigh.signature, itLow.signature]
     }
 }
 
@@ -212,7 +318,7 @@ export function buildStringInputText(
     return inputText
 }
 
-export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
+function decryptUint(ciphertext: ctUint8 | ctUint16 | ctUint32 | ctUint64, userKey: string): bigint {
     // Convert ciphertext to Uint8Array
     let ctArray = new Uint8Array()
 
@@ -234,6 +340,46 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
     const decryptedMessage = decrypt(userKeyBytes, r, cipher)
 
     return decodeUint(decryptedMessage)
+}
+
+export function decryptUint8(ciphertext: ctUint8, userKey: string): bigint {
+    return decryptUint(ciphertext, userKey)
+}
+
+export function decryptUint16(ciphertext: ctUint16, userKey: string): bigint {
+    return decryptUint(ciphertext, userKey)
+}
+
+export function decryptUint32(ciphertext: ctUint32, userKey: string): bigint {
+    return decryptUint(ciphertext, userKey)
+}
+
+export function decryptUint64(ciphertext: ctUint64, userKey: string): bigint {
+    return decryptUint(ciphertext, userKey)
+}
+
+export function decryptUint128(ciphertext: ctUint128, userKey: string): bigint {
+    const high = decryptUint(ciphertext.high, userKey)
+    const low = decryptUint(ciphertext.low, userKey)
+  
+    // Convert both high and low parts to hex strings, ensuring they are 16 characters (8 bytes) long
+    let highHex = high.toString(16).padStart(16, '0');
+    let lowHex = low.toString(16).padStart(16, '0');
+  
+    // Concatenate and convert back to a single bigint
+    return BigInt(`0x${highHex + lowHex}`);
+}
+
+export function decryptUint256(ciphertext: ctUint256, userKey: string): bigint {
+    const high = decryptUint128(ciphertext.high, userKey)
+    const low = decryptUint128(ciphertext.low, userKey)
+  
+    // Convert both high and low parts to hex strings, ensuring they are 16 characters (8 bytes) long
+    let highHex = high.toString(16).padStart(32, '0');
+    let lowHex = low.toString(16).padStart(32, '0');
+  
+    // Concatenate and convert back to a single bigint
+    return BigInt(`0x${highHex + lowHex}`);
 }
 
 export function decryptString(ciphertext: ctString, userKey: string): string {
