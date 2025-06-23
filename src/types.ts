@@ -24,18 +24,12 @@ export type itUint64 = {
 }
 
 export type itUint128 = {
-    ciphertext: {
-        high: bigint
-        low: bigint
-    }
+    ciphertext: ctUint128
     signature: [Uint8Array | string, Uint8Array | string]
 }
 
 export type itUint256 = {
-    ciphertext: {
-        high: { high: bigint, low: bigint }
-        low: { high: bigint, low: bigint }
-    }
+    ciphertext: ctUint256
     signature: [[Uint8Array | string, Uint8Array | string], [Uint8Array | string, Uint8Array | string]]
 }
 
@@ -57,8 +51,8 @@ export type ctUint128 = {
 }
 
 export type ctUint256 = {
-    high: { high: bigint, low: bigint }
-    low: { high: bigint, low: bigint }
+    high: ctUint128
+    low: ctUint128
 }
 
 export type ctString = { value: Array<bigint> }

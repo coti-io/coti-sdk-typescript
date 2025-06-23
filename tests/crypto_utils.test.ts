@@ -1,6 +1,8 @@
 import { Wallet } from 'ethers'
 import {
     buildInputText,
+	buildUint128InputText,
+	buildUint256InputText,
     buildStringInputText,
     decodeUint,
     decrypt,
@@ -429,4 +431,533 @@ describe('crypto_utils', () => {
 
         expect(plaintext).toEqual(PLAINTEXT)
     })
+
+	describe("buildUint128InputText", () => {
+		const PRIVATE_KEY = "0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34"
+		const USER_KEY = "4b0418c1543dbe70f215175bcddfac42"
+		const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000001"
+		const FUNCTION_SELECTOR = "0x11223344"
+
+		test("build input text from a 128-bit unsigned integer", () => {
+			const PLAINTEXT = BigInt("340282366920938463463374607431768211455") // max uint128
+
+			const result = buildUint128InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			// Verify structure
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+			expect(result.ciphertext).toHaveProperty("low")
+			expect(result.ciphertext).toHaveProperty("high")
+			expect(result.signature).toHaveLength(2)
+
+			// Verify ciphertext values are bigints
+			expect(typeof result.ciphertext.low).toBe("bigint")
+			expect(typeof result.ciphertext.high).toBe("bigint")
+
+			// Verify signature structure - now it's [signature1, signature2] not nested arrays
+			expect(result.signature[0]).toBeInstanceOf(Uint8Array)
+			expect(result.signature[1]).toBeInstanceOf(Uint8Array)
+
+			// Verify signature lengths are 65 bytes each (full signatures)
+			expect(result.signature[0]).toHaveLength(65)
+			expect(result.signature[1]).toHaveLength(65)
+
+			// Verify ciphertext correctness by comparing with individual buildInputText calls
+			const hexString = PLAINTEXT.toString(16).padStart(32, '0')
+			const high = hexString.slice(0, 16)
+			const low = hexString.slice(16, 32)
+			
+			const expectedHighResult = buildInputText(
+				BigInt(`0x${high}`),
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+			const expectedLowResult = buildInputText(
+				BigInt(`0x${low}`),
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result.ciphertext.high).toBe(expectedHighResult.ciphertext)
+			expect(result.ciphertext.low).toBe(expectedLowResult.ciphertext)
+		})
+
+		test("build input text from a smaller 128-bit value", () => {
+			const PLAINTEXT = BigInt("123456789012345678901234567890")
+
+			const result = buildUint128InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			// Should have the same structure
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+			expect(result.ciphertext).toHaveProperty("low")
+			expect(result.ciphertext).toHaveProperty("high")
+
+			// Verify ciphertext correctness
+			const mask64 = (BigInt(1) << BigInt(64)) - BigInt(1)
+			const expectedLow = PLAINTEXT & mask64
+			const expectedHigh = PLAINTEXT >> BigInt(64)
+
+			const expectedLowResult = buildInputText(
+				expectedLow,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+			const expectedHighResult = buildInputText(
+				expectedHigh,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result.ciphertext.low).toBe(expectedLowResult.ciphertext)
+			expect(result.ciphertext.high).toBe(expectedHighResult.ciphertext)
+		})
+
+		test("throw RangeError when the value is greater than max uint128", () => {
+			const PLAINTEXT = BigInt(2) ** BigInt(128) // one bit too large
+
+			expect(() =>
+				buildUint128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR),
+			).toThrow(RangeError)
+		})
+
+		test("handle zero value correctly", () => {
+			const PLAINTEXT = BigInt(0)
+
+			const result = buildUint128InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result.ciphertext.low).toBeDefined()
+			expect(result.ciphertext.high).toBeDefined()
+
+			// Verify ciphertext correctness - both parts should be zero
+			const expectedZeroResult = buildInputText(
+				BigInt(0),
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result.ciphertext.low).toBe(expectedZeroResult.ciphertext)
+			expect(result.ciphertext.high).toBe(expectedZeroResult.ciphertext)
+		})
+
+		test("handle edge case with exact uint128 max value", () => {
+			const PLAINTEXT = BigInt("340282366920938463463374607431768211455") // max uint128
+
+			const result = buildUint128InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result.ciphertext.low).toBeDefined()
+			expect(result.ciphertext.high).toBeDefined()
+
+			// Verify ciphertext correctness
+			const mask64 = (BigInt(1) << BigInt(64)) - BigInt(1)
+			const expectedLow = PLAINTEXT & mask64
+			const expectedHigh = PLAINTEXT >> BigInt(64)
+
+			const expectedLowResult = buildInputText(
+				expectedLow,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+			const expectedHighResult = buildInputText(
+				expectedHigh,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result.ciphertext.low).toBe(expectedLowResult.ciphertext)
+			expect(result.ciphertext.high).toBe(expectedHighResult.ciphertext)
+		})
+
+		// Edge case tests to reproduce potential BigInt type mixing errors
+		test("should throw TypeError when passed a regular number instead of BigInt", () => {
+			const PLAINTEXT = 123456789 as any // regular number, not BigInt
+
+			expect(() =>
+				buildUint128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR),
+			).toThrow()
+		})
+
+		test("should throw TypeError when passed a string number", () => {
+			const PLAINTEXT = "123456789" as any // string, not BigInt
+
+			expect(() =>
+				buildUint128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR),
+			).toThrow()
+		})
+
+		test("should throw RangeError for negative BigInt", () => {
+			const PLAINTEXT = BigInt(-1)
+
+			// Note: This should throw a RangeError in our validation, not a TypeError
+			expect(() =>
+				buildUint128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR),
+			).toThrow()
+		})
+
+		test("should handle very large valid BigInt correctly", () => {
+			const PLAINTEXT = BigInt("0xffffffffffffffffffffffffffffffff") // max uint128 in hex
+
+			const result = buildUint128InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+	})
+
+	describe("buildUint256InputText", () => {
+		const PRIVATE_KEY = "0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34"
+		const USER_KEY = "4b0418c1543dbe70f215175bcddfac42"
+		const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000001"
+		const FUNCTION_SELECTOR = "0x11223344"
+
+		test("build input text from a 256-bit unsigned integer", () => {
+			const PLAINTEXT = BigInt("115792089237316195423570985008687907853269984665640564039457584007913129639935") // max uint256
+
+			const result = buildUint256InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			// Verify structure
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+
+			// Verify ciphertext structure (nested)
+			expect(result.ciphertext).toHaveProperty("low")
+			expect(result.ciphertext).toHaveProperty("high")
+			expect(result.ciphertext.low).toHaveProperty("low")
+			expect(result.ciphertext.low).toHaveProperty("high")
+			expect(result.ciphertext.high).toHaveProperty("low")
+			expect(result.ciphertext.high).toHaveProperty("high")
+
+			// Verify all ciphertext parts are bigints
+			expect(typeof result.ciphertext.low.low).toBe("bigint")
+			expect(typeof result.ciphertext.low.high).toBe("bigint")
+			expect(typeof result.ciphertext.high.low).toBe("bigint")
+			expect(typeof result.ciphertext.high.high).toBe("bigint")
+
+			// Verify signature structure - now it's [uint128Signature1, uint128Signature2] 
+			expect(result.signature).toHaveLength(2)
+			expect(result.signature[0]).toBeInstanceOf(Array)
+			expect(result.signature[1]).toBeInstanceOf(Array)
+			expect(result.signature[0]).toHaveLength(2)
+			expect(result.signature[1]).toHaveLength(2)
+
+			// Verify signature parts are Uint8Arrays of correct length
+			expect(result.signature[0][0]).toBeInstanceOf(Uint8Array)
+			expect(result.signature[0][1]).toBeInstanceOf(Uint8Array)
+			expect(result.signature[1][0]).toBeInstanceOf(Uint8Array)
+			expect(result.signature[1][1]).toBeInstanceOf(Uint8Array)
+
+			expect(result.signature[0][0]).toHaveLength(65)
+			expect(result.signature[0][1]).toHaveLength(65)
+			expect(result.signature[1][0]).toHaveLength(65)
+			expect(result.signature[1][1]).toHaveLength(65)
+
+			// Verify ciphertext correctness by comparing with uint128 calls
+			const hexString = PLAINTEXT.toString(16).padStart(64, '0')
+			const high = hexString.slice(0, 32)
+			const low = hexString.slice(32, 64)
+
+			const expectedHighResult = buildUint128InputText(
+				BigInt(`0x${high}`),
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+			const expectedLowResult = buildUint128InputText(
+				BigInt(`0x${low}`),
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result.ciphertext.high.low).toBe(expectedHighResult.ciphertext.low)
+			expect(result.ciphertext.high.high).toBe(expectedHighResult.ciphertext.high)
+			expect(result.ciphertext.low.low).toBe(expectedLowResult.ciphertext.low)
+			expect(result.ciphertext.low.high).toBe(expectedLowResult.ciphertext.high)
+		})
+
+		test("build input text from a smaller 256-bit value", () => {
+			const PLAINTEXT = BigInt("12345678901234567890123456789012345678901234567890")
+
+			const result = buildUint256InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			// Should have the same structure
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+			expect(result.ciphertext.low).toHaveProperty("low")
+			expect(result.ciphertext.low).toHaveProperty("high")
+			expect(result.ciphertext.high).toHaveProperty("low")
+			expect(result.ciphertext.high).toHaveProperty("high")
+
+			// Verify ciphertext correctness
+			const mask128 = (BigInt(1) << BigInt(128)) - BigInt(1)
+			const low128 = PLAINTEXT & mask128
+			const high128 = PLAINTEXT >> BigInt(128)
+
+			const mask64 = (BigInt(1) << BigInt(64)) - BigInt(1)
+			const expectedLowLow = low128 & mask64
+			const expectedLowHigh = low128 >> BigInt(64)
+			const expectedHighLow = high128 & mask64
+			const expectedHighHigh = high128 >> BigInt(64)
+
+			const expectedLowLowResult = buildInputText(
+				expectedLowLow,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+			const expectedLowHighResult = buildInputText(
+				expectedLowHigh,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+			const expectedHighLowResult = buildInputText(
+				expectedHighLow,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+			const expectedHighHighResult = buildInputText(
+				expectedHighHigh,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result.ciphertext.low.low).toBe(expectedLowLowResult.ciphertext)
+			expect(result.ciphertext.low.high).toBe(expectedLowHighResult.ciphertext)
+			expect(result.ciphertext.high.low).toBe(expectedHighLowResult.ciphertext)
+			expect(result.ciphertext.high.high).toBe(expectedHighHighResult.ciphertext)
+		})
+
+		test("throw RangeError when the value is greater than max uint256", () => {
+			const PLAINTEXT = BigInt(2) ** BigInt(256) // one bit too large
+
+			expect(() =>
+				buildUint256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR),
+			).toThrow(RangeError)
+		})
+
+		test("handle zero value correctly", () => {
+			const PLAINTEXT = BigInt(0)
+
+			const result = buildUint256InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result.ciphertext.low.low).toBeDefined()
+			expect(result.ciphertext.low.high).toBeDefined()
+			expect(result.ciphertext.high.low).toBeDefined()
+			expect(result.ciphertext.high.high).toBeDefined()
+
+			// Verify ciphertext correctness - all parts should be zero
+			const expectedZeroResult = buildInputText(
+				BigInt(0),
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result.ciphertext.low.low).toBe(expectedZeroResult.ciphertext)
+			expect(result.ciphertext.low.high).toBe(expectedZeroResult.ciphertext)
+			expect(result.ciphertext.high.low).toBe(expectedZeroResult.ciphertext)
+			expect(result.ciphertext.high.high).toBe(expectedZeroResult.ciphertext)
+		})
+
+		test("handle value that fits in 128 bits correctly", () => {
+			const PLAINTEXT = BigInt("340282366920938463463374607431768211455") // max uint128
+
+			const result = buildUint256InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			// High parts should be zero since value fits in 128 bits
+			expect(result.ciphertext.high.low).toBeDefined()
+			expect(result.ciphertext.high.high).toBeDefined()
+
+			// Verify ciphertext correctness
+			const mask64 = (BigInt(1) << BigInt(64)) - BigInt(1)
+			const expectedLowLow = PLAINTEXT & mask64
+			const expectedLowHigh = PLAINTEXT >> BigInt(64)
+
+			const expectedLowLowResult = buildInputText(
+				expectedLowLow,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+			const expectedLowHighResult = buildInputText(
+				expectedLowHigh,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+			const expectedZeroResult = buildInputText(
+				BigInt(0),
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result.ciphertext.low.low).toBe(expectedLowLowResult.ciphertext)
+			expect(result.ciphertext.low.high).toBe(expectedLowHighResult.ciphertext)
+			expect(result.ciphertext.high.low).toBe(expectedZeroResult.ciphertext) // should be zero
+			expect(result.ciphertext.high.high).toBe(expectedZeroResult.ciphertext) // should be zero
+		})
+
+		// Edge case tests to reproduce potential BigInt type mixing errors
+		test("should throw TypeError when passed a regular number instead of BigInt", () => {
+			const PLAINTEXT = 123456789 as any // regular number, not BigInt
+
+			expect(() =>
+				buildUint256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR),
+			).toThrow()
+		})
+
+		test("should throw TypeError when passed a string number", () => {
+			const PLAINTEXT = "123456789" as any // string, not BigInt
+
+			expect(() =>
+				buildUint256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR),
+			).toThrow()
+		})
+
+		test("should throw TypeError when passed undefined", () => {
+			const PLAINTEXT = undefined as any
+
+			expect(() =>
+				buildUint256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR),
+			).toThrow()
+		})
+
+		test("should throw TypeError when passed null", () => {
+			const PLAINTEXT = null as any
+
+			expect(() =>
+				buildUint256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR),
+			).toThrow()
+		})
+
+		test("should handle very large BigInt correctly", () => {
+			const PLAINTEXT = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff") // max uint256 in hex
+
+			const result = buildUint256InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("should throw RangeError for negative BigInt", () => {
+			const PLAINTEXT = BigInt(-1)
+
+			// Note: This should throw a RangeError in our validation, not a TypeError
+			expect(() =>
+				buildUint256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR),
+			).toThrow()
+		})
+
+		test("should handle BigInt created from hex string", () => {
+			const PLAINTEXT = BigInt("0x123456789abcdef0123456789abcdef0")
+
+			const result = buildUint256InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("should handle edge case: BigInt(1)", () => {
+			const PLAINTEXT = BigInt(1)
+
+			const result = buildUint256InputText(
+				PLAINTEXT,
+				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+				CONTRACT_ADDRESS,
+				FUNCTION_SELECTOR,
+			)
+
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		// Test comprehensive input type validation
+		test("should validate input types and reject non-BigInt values", () => {
+			const PRIVATE_KEY = "0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34"
+			const USER_KEY = "4b0418c1543dbe70f215175bcddfac42"
+			const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000001"
+			const FUNCTION_SELECTOR = "0x11223344"
+
+			// These invalid input types should all throw TypeError
+			const invalidInputs = [
+				{ value: 123456789, name: "regular number" },
+				{ value: "123456789", name: "string number" },
+				{ value: undefined, name: "undefined" },
+				{ value: null, name: "null" },
+				{ value: 123.456, name: "float" },
+			]
+
+			invalidInputs.forEach(({ value, name }) => {
+				expect(() => {
+					buildUint256InputText(value as any, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				}).toThrow(TypeError)
+			})
+		})
+	})
 })

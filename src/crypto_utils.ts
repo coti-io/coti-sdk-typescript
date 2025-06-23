@@ -163,7 +163,7 @@ export function signInputText(
     return sign(message, sender.wallet.privateKey);
 }
 
-function buildInputText(
+export function buildInputText(
     plaintext: bigint,
     sender: { wallet: BaseWallet; userKey: string },
     contractAddress: string,
@@ -236,6 +236,20 @@ export function buildUint128InputText(
     contractAddress: string,
     functionSelector: string
 ): itUint128 {
+    // Type validation
+    if (typeof plaintext !== "bigint") {
+        throw new TypeError("Plaintext must be a BigInt value.")
+    }
+
+    // Range validation
+    if (plaintext < 0) {
+        throw new RangeError("Plaintext must be a non-negative value.")
+    }
+
+    if (plaintext >= BigInt(2) ** BigInt(128)) {
+        throw new RangeError("Plaintext size must be 128 bits or smaller.")
+    }
+
     // Convert to hex string and ensure it is 32 characters (16 bytes)
     const hexString = plaintext.toString(16).padStart(32, '0');
 
@@ -261,6 +275,20 @@ export function buildUint256InputText(
     contractAddress: string,
     functionSelector: string
 ): itUint256 {
+    // Type validation
+	if (typeof plaintext !== "bigint") {
+		throw new TypeError("Plaintext must be a BigInt value.")
+	}
+
+	// Range validation
+	if (plaintext < 0) {
+		throw new RangeError("Plaintext must be a non-negative value.")
+	}
+
+	if (plaintext >= BigInt(2) ** BigInt(256)) {
+		throw new RangeError("Plaintext size must be 256 bits or smaller.")
+	}
+    
     // Convert to hex string and ensure it is 64 characters (32 bytes)
     const hexString = plaintext.toString(16).padStart(64, '0');
   
@@ -318,7 +346,7 @@ export function buildStringInputText(
     return inputText
 }
 
-function decryptUint(ciphertext: ctUint8 | ctUint16 | ctUint32 | ctUint64, userKey: string): bigint {
+export function decryptUint(ciphertext: ctUint8 | ctUint16 | ctUint32 | ctUint64, userKey: string): bigint {
     // Convert ciphertext to Uint8Array
     let ctArray = new Uint8Array()
 
