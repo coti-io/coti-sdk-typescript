@@ -9,6 +9,7 @@ import {
     buildInt64InputText,
     buildInt128InputText,
     buildInt256InputText,
+    buildBoolInputText,
     buildStringInputText,
     decodeUint,
     decrypt,
@@ -21,6 +22,7 @@ import {
     decryptInt64,
     decryptInt128,
     decryptInt256,
+    decryptBool,
     encodeKey,
     encodeString,
     encodeUint,
@@ -1547,6 +1549,139 @@ describe('crypto_utils', () => {
 				const encrypted = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
 				const decrypted = decryptInt256(encrypted.ciphertext, USER_KEY)
 				expect(decrypted).toBe(PLAINTEXT)
+			})
+		})
+	})
+
+	// Boolean Tests
+	describe("Boolean Input and Decrypt Functions", () => {
+		const USER_KEY = "4b0418c1543dbe70f215175bcddfac42"
+		const PRIVATE_KEY = "0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34"
+		const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000001"
+		const FUNCTION_SELECTOR = "0x11223344"
+
+		describe("buildBoolInputText", () => {
+			test("build input text from boolean true", () => {
+				const PLAINTEXT = true
+				const result = buildBoolInputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				
+				expect(result).toHaveProperty("ciphertext")
+				expect(result).toHaveProperty("signature")
+				expect(typeof result.ciphertext).toBe("bigint")
+				expect(result.signature).toBeInstanceOf(Uint8Array)
+				expect(result.signature).toHaveLength(65)
+			})
+
+			test("build input text from boolean false", () => {
+				const PLAINTEXT = false
+				const result = buildBoolInputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				
+				expect(result).toHaveProperty("ciphertext")
+				expect(result).toHaveProperty("signature")
+				expect(typeof result.ciphertext).toBe("bigint")
+				expect(result.signature).toBeInstanceOf(Uint8Array)
+				expect(result.signature).toHaveLength(65)
+			})
+
+			test("should handle different values for true and false", () => {
+				const trueResult = buildBoolInputText(true, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const falseResult = buildBoolInputText(false, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				
+				// The ciphertexts should be different since they encrypt different values
+				expect(trueResult.ciphertext).not.toBe(falseResult.ciphertext)
+			})
+
+			test("throw TypeError for non-boolean input", () => {
+				expect(() => buildBoolInputText(1 as any, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(TypeError)
+				expect(() => buildBoolInputText("true" as any, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(TypeError)
+				expect(() => buildBoolInputText(0 as any, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(TypeError)
+				expect(() => buildBoolInputText(null as any, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(TypeError)
+				expect(() => buildBoolInputText(undefined as any, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(TypeError)
+			})
+		})
+
+		describe("decryptBool", () => {
+			test("decrypt boolean true", () => {
+				const PLAINTEXT = true
+				const encrypted = buildBoolInputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptBool(encrypted.ciphertext, USER_KEY)
+				
+				expect(decrypted).toBe(PLAINTEXT)
+				expect(typeof decrypted).toBe("boolean")
+			})
+
+			test("decrypt boolean false", () => {
+				const PLAINTEXT = false
+				const encrypted = buildBoolInputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptBool(encrypted.ciphertext, USER_KEY)
+				
+				expect(decrypted).toBe(PLAINTEXT)
+				expect(typeof decrypted).toBe("boolean")
+			})
+
+			test("round-trip encryption and decryption for true", () => {
+				const PLAINTEXT = true
+				const encrypted = buildBoolInputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptBool(encrypted.ciphertext, USER_KEY)
+				
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("round-trip encryption and decryption for false", () => {
+				const PLAINTEXT = false
+				const encrypted = buildBoolInputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptBool(encrypted.ciphertext, USER_KEY)
+				
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("multiple true values should decrypt to true", () => {
+				for (let i = 0; i < 5; i++) {
+					const encrypted = buildBoolInputText(true, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+					const decrypted = decryptBool(encrypted.ciphertext, USER_KEY)
+					expect(decrypted).toBe(true)
+				}
+			})
+
+			test("multiple false values should decrypt to false", () => {
+				for (let i = 0; i < 5; i++) {
+					const encrypted = buildBoolInputText(false, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+					const decrypted = decryptBool(encrypted.ciphertext, USER_KEY)
+					expect(decrypted).toBe(false)
+				}
+			})
+		})
+
+		describe("Boolean consistency", () => {
+			test("true should consistently encrypt to non-zero values", () => {
+				// Test multiple encryptions of true to ensure they all decrypt back to true
+				for (let i = 0; i < 10; i++) {
+					const encrypted = buildBoolInputText(true, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+					const decrypted = decryptBool(encrypted.ciphertext, USER_KEY)
+					expect(decrypted).toBe(true)
+				}
+			})
+
+			test("false should consistently encrypt to zero values", () => {
+				// Test multiple encryptions of false to ensure they all decrypt back to false
+				for (let i = 0; i < 10; i++) {
+					const encrypted = buildBoolInputText(false, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+					const decrypted = decryptBool(encrypted.ciphertext, USER_KEY)
+					expect(decrypted).toBe(false)
+				}
+			})
+
+			test("verify internal representation (true = 1n, false = 0n)", () => {
+				// This test verifies the internal BigInt representation
+				const trueEncrypted = buildBoolInputText(true, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const falseEncrypted = buildBoolInputText(false, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+
+				// Decrypt as uint to check the internal values
+				const trueAsUint = decryptUint(trueEncrypted.ciphertext, USER_KEY)
+				const falseAsUint = decryptUint(falseEncrypted.ciphertext, USER_KEY)
+
+				expect(trueAsUint).toBe(1n)
+				expect(falseAsUint).toBe(0n)
 			})
 		})
 	})

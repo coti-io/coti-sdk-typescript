@@ -6,6 +6,7 @@ import {
     solidityPackedKeccak256
 } from "ethers"
 import {
+    ctBool,
     ctString,
     ctUint8,
     ctUint16,
@@ -19,6 +20,7 @@ import {
     ctInt64,
     ctInt128,
     ctInt256,
+    itBool,
     itString,
     itUint8,
     itUint16,
@@ -349,6 +351,23 @@ export function buildStringInputText(
     return inputText
 }
 
+export function buildBoolInputText(
+    plaintext: boolean,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itBool {
+    // Type validation for boolean
+    if (typeof plaintext !== "boolean") {
+        throw new TypeError("Plaintext for bool must be a boolean value.")
+    }
+    
+    // Convert boolean to bigint (true = 1n, false = 0n)
+    const value = plaintext ? 1n : 0n;
+    
+    return buildInputText(value, sender, contractAddress, functionSelector)
+}
+
 export function decryptUint(ciphertext: ctUint8 | ctUint16 | ctUint32 | ctUint64, userKey: string): bigint {
     // Convert ciphertext to Uint8Array
     let ctArray = new Uint8Array()
@@ -430,6 +449,12 @@ export function decryptString(ciphertext: ctString, userKey: string): string {
     return decoder
         .decode(encodedStr)
         .replace(/\0/g, '')
+}
+
+export function decryptBool(ciphertext: ctBool, userKey: string): boolean {
+    const decrypted = decryptUint(ciphertext, userKey)
+    // Convert bigint to boolean (0n = false, anything else = true)
+    return decrypted !== 0n
 }
 
 export function generateRandomAesKeySizeNumber(): string {
