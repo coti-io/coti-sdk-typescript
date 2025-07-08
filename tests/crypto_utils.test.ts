@@ -3,12 +3,24 @@ import {
     buildInputText,
 	buildUint128InputText,
 	buildUint256InputText,
+    buildInt8InputText,
+    buildInt16InputText,
+    buildInt32InputText,
+    buildInt64InputText,
+    buildInt128InputText,
+    buildInt256InputText,
     buildStringInputText,
     decodeUint,
     decrypt,
     decryptRSA,
     decryptString,
     decryptUint,
+    decryptInt8,
+    decryptInt16,
+    decryptInt32,
+    decryptInt64,
+    decryptInt128,
+    decryptInt256,
     encodeKey,
     encodeString,
     encodeUint,
@@ -825,17 +837,17 @@ describe('crypto_utils', () => {
 
 			// Verify ciphertext correctness
 			const mask64 = (BigInt(1) << BigInt(64)) - BigInt(1)
-			const expectedLowLow = PLAINTEXT & mask64
-			const expectedLowHigh = PLAINTEXT >> BigInt(64)
+			const expectedLow = PLAINTEXT & mask64
+			const expectedHigh = PLAINTEXT >> BigInt(64)
 
-			const expectedLowLowResult = buildInputText(
-				expectedLowLow,
+			const expectedLowResult = buildInputText(
+				expectedLow,
 				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
 				CONTRACT_ADDRESS,
 				FUNCTION_SELECTOR,
 			)
-			const expectedLowHighResult = buildInputText(
-				expectedLowHigh,
+			const expectedHighResult = buildInputText(
+				expectedHigh,
 				{ wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
 				CONTRACT_ADDRESS,
 				FUNCTION_SELECTOR,
@@ -847,8 +859,8 @@ describe('crypto_utils', () => {
 				FUNCTION_SELECTOR,
 			)
 
-			expect(result.ciphertext.low.low).toBe(expectedLowLowResult.ciphertext)
-			expect(result.ciphertext.low.high).toBe(expectedLowHighResult.ciphertext)
+			expect(result.ciphertext.low.low).toBe(expectedLowResult.ciphertext)
+			expect(result.ciphertext.low.high).toBe(expectedLowResult.ciphertext)
 			expect(result.ciphertext.high.low).toBe(expectedZeroResult.ciphertext) // should be zero
 			expect(result.ciphertext.high.high).toBe(expectedZeroResult.ciphertext) // should be zero
 		})
@@ -957,6 +969,584 @@ describe('crypto_utils', () => {
 				expect(() => {
 					buildUint256InputText(value as any, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
 				}).toThrow(TypeError)
+			})
+		})
+	})
+
+	// Signed Integer Tests
+	describe("buildInt8InputText", () => {
+		const PRIVATE_KEY = "0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34"
+		const USER_KEY = "4b0418c1543dbe70f215175bcddfac42"
+		const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000001"
+		const FUNCTION_SELECTOR = "0x11223344"
+
+		test("build input text from positive int8 value", () => {
+			const PLAINTEXT = BigInt(100)
+			const result = buildInt8InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("build input text from negative int8 value", () => {
+			const PLAINTEXT = BigInt(-100)
+			const result = buildInt8InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle int8 min value (-128)", () => {
+			const PLAINTEXT = BigInt(-128)
+			const result = buildInt8InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle int8 max value (127)", () => {
+			const PLAINTEXT = BigInt(127)
+			const result = buildInt8InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("throw RangeError for value below int8 min", () => {
+			const PLAINTEXT = BigInt(-129)
+			expect(() => buildInt8InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+
+		test("throw RangeError for value above int8 max", () => {
+			const PLAINTEXT = BigInt(128)
+			expect(() => buildInt8InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+
+		test("throw TypeError for non-BigInt input", () => {
+			expect(() => buildInt8InputText(100 as any, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(TypeError)
+		})
+	})
+
+	describe("buildInt16InputText", () => {
+		const PRIVATE_KEY = "0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34"
+		const USER_KEY = "4b0418c1543dbe70f215175bcddfac42"
+		const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000001"
+		const FUNCTION_SELECTOR = "0x11223344"
+
+		test("build input text from positive int16 value", () => {
+			const PLAINTEXT = BigInt(20000)
+			const result = buildInt16InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("build input text from negative int16 value", () => {
+			const PLAINTEXT = BigInt(-20000)
+			const result = buildInt16InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle int16 min value (-32768)", () => {
+			const PLAINTEXT = BigInt(-32768)
+			const result = buildInt16InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle int16 max value (32767)", () => {
+			const PLAINTEXT = BigInt(32767)
+			const result = buildInt16InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("throw RangeError for value below int16 min", () => {
+			const PLAINTEXT = BigInt(-32769)
+			expect(() => buildInt16InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+
+		test("throw RangeError for value above int16 max", () => {
+			const PLAINTEXT = BigInt(32768)
+			expect(() => buildInt16InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+	})
+
+	describe("buildInt32InputText", () => {
+		const PRIVATE_KEY = "0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34"
+		const USER_KEY = "4b0418c1543dbe70f215175bcddfac42"
+		const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000001"
+		const FUNCTION_SELECTOR = "0x11223344"
+
+		test("build input text from positive int32 value", () => {
+			const PLAINTEXT = BigInt(1000000000)
+			const result = buildInt32InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("build input text from negative int32 value", () => {
+			const PLAINTEXT = BigInt(-1000000000)
+			const result = buildInt32InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle int32 min value (-2147483648)", () => {
+			const PLAINTEXT = BigInt(-2147483648)
+			const result = buildInt32InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle int32 max value (2147483647)", () => {
+			const PLAINTEXT = BigInt(2147483647)
+			const result = buildInt32InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("throw RangeError for value below int32 min", () => {
+			const PLAINTEXT = BigInt(-2147483649)
+			expect(() => buildInt32InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+
+		test("throw RangeError for value above int32 max", () => {
+			const PLAINTEXT = BigInt(2147483648)
+			expect(() => buildInt32InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+	})
+
+	describe("buildInt64InputText", () => {
+		const PRIVATE_KEY = "0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34"
+		const USER_KEY = "4b0418c1543dbe70f215175bcddfac42"
+		const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000001"
+		const FUNCTION_SELECTOR = "0x11223344"
+
+		test("build input text from positive int64 value", () => {
+			const PLAINTEXT = BigInt("4611686018427387903")
+			const result = buildInt64InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("build input text from negative int64 value", () => {
+			const PLAINTEXT = BigInt("-4611686018427387904")
+			const result = buildInt64InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle int64 min value (-9223372036854775808)", () => {
+			const PLAINTEXT = BigInt("-9223372036854775808")
+			const result = buildInt64InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle int64 max value (9223372036854775807)", () => {
+			const PLAINTEXT = BigInt("9223372036854775807")
+			const result = buildInt64InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("throw RangeError for value below int64 min", () => {
+			const PLAINTEXT = BigInt("-9223372036854775809")
+			expect(() => buildInt64InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+
+		test("throw RangeError for value above int64 max", () => {
+			const PLAINTEXT = BigInt("9223372036854775808")
+			expect(() => buildInt64InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+	})
+
+	describe("buildInt128InputText", () => {
+		const PRIVATE_KEY = "0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34"
+		const USER_KEY = "4b0418c1543dbe70f215175bcddfac42"
+		const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000001"
+		const FUNCTION_SELECTOR = "0x11223344"
+
+		test("build input text from positive int128 value", () => {
+			const PLAINTEXT = BigInt("85070591730234615865843651857942052863")
+			const result = buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+			expect(result.ciphertext).toHaveProperty("low")
+			expect(result.ciphertext).toHaveProperty("high")
+			expect(result.signature).toHaveLength(2)
+		})
+
+		test("build input text from negative int128 value", () => {
+			const PLAINTEXT = BigInt("-85070591730234615865843651857942052864")
+			const result = buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+			expect(result.ciphertext).toHaveProperty("low")
+			expect(result.ciphertext).toHaveProperty("high")
+		})
+
+		test("handle int128 min value (-170141183460469231731687303715884105728)", () => {
+			const PLAINTEXT = BigInt("-170141183460469231731687303715884105728")
+			const result = buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle int128 max value (170141183460469231731687303715884105727)", () => {
+			const PLAINTEXT = BigInt("170141183460469231731687303715884105727")
+			const result = buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle zero value correctly", () => {
+			const PLAINTEXT = BigInt(0)
+			const result = buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result.ciphertext.low).toBeDefined()
+			expect(result.ciphertext.high).toBeDefined()
+		})
+
+		test("throw RangeError for value below int128 min", () => {
+			const PLAINTEXT = BigInt("-170141183460469231731687303715884105729")
+			expect(() => buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+
+		test("throw RangeError for value above int128 max", () => {
+			const PLAINTEXT = BigInt("170141183460469231731687303715884105728")
+			expect(() => buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+
+		test("throw TypeError for non-BigInt input", () => {
+			expect(() => buildInt128InputText("123" as any, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(TypeError)
+		})
+	})
+
+	describe("buildInt256InputText", () => {
+		const PRIVATE_KEY = "0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34"
+		const USER_KEY = "4b0418c1543dbe70f215175bcddfac42"
+		const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000001"
+		const FUNCTION_SELECTOR = "0x11223344"
+
+		test("build input text from positive int256 value", () => {
+			const PLAINTEXT = BigInt("28948022309329048855892746252171976963317496166410141009864396001978282409983")
+			const result = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+			expect(result.ciphertext).toHaveProperty("low")
+			expect(result.ciphertext).toHaveProperty("high")
+			expect(result.ciphertext.low).toHaveProperty("low")
+			expect(result.ciphertext.low).toHaveProperty("high")
+			expect(result.ciphertext.high).toHaveProperty("low")
+			expect(result.ciphertext.high).toHaveProperty("high")
+			expect(result.signature).toHaveLength(2)
+		})
+
+		test("build input text from negative int256 value", () => {
+			const PLAINTEXT = BigInt("-28948022309329048855892746252171976963317496166410141009864396001978282409984")
+			const result = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+			expect(result.ciphertext).toHaveProperty("low")
+			expect(result.ciphertext).toHaveProperty("high")
+		})
+
+		test("handle int256 min value", () => {
+			const PLAINTEXT = BigInt("-57896044618658097711785492504343953926634992332820282019728792003956564819968")
+			const result = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle int256 max value", () => {
+			const PLAINTEXT = BigInt("57896044618658097711785492504343953926634992332820282019728792003956564819967")
+			const result = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle zero value correctly", () => {
+			const PLAINTEXT = BigInt(0)
+			const result = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result.ciphertext.low.low).toBeDefined()
+			expect(result.ciphertext.low.high).toBeDefined()
+			expect(result.ciphertext.high.low).toBeDefined()
+			expect(result.ciphertext.high.high).toBeDefined()
+		})
+
+		test("handle small positive value that fits in 64 bits", () => {
+			const PLAINTEXT = BigInt(12345)
+			const result = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("handle small negative value", () => {
+			const PLAINTEXT = BigInt(-12345)
+			const result = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+
+		test("throw RangeError for value below int256 min", () => {
+			const PLAINTEXT = BigInt("-57896044618658097711785492504343953926634992332820282019728792003956564819969")
+			expect(() => buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+
+		test("throw RangeError for value above int256 max", () => {
+			const PLAINTEXT = BigInt("57896044618658097711785492504343953926634992332820282019728792003956564819968")
+			expect(() => buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(RangeError)
+		})
+
+		test("throw TypeError for non-BigInt input", () => {
+			expect(() => buildInt256InputText("123" as any, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)).toThrow(TypeError)
+		})
+
+		test("verify two's complement encoding for negative values", () => {
+			const PLAINTEXT = BigInt(-1)
+			const result = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+			
+			// For -1 in two's complement, all bits should be set (0xFF...FF)
+			expect(result).toHaveProperty("ciphertext")
+			expect(result).toHaveProperty("signature")
+		})
+	})
+
+	// Signed Integer Decrypt Tests
+	describe("Signed Integer Decrypt Functions", () => {
+		const USER_KEY = "4b0418c1543dbe70f215175bcddfac42"
+		const PRIVATE_KEY = "0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34"
+		const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000001"
+		const FUNCTION_SELECTOR = "0x11223344"
+
+		describe("decryptInt8", () => {
+			test("decrypt positive int8 value", () => {
+				const PLAINTEXT = BigInt(100)
+				const encrypted = buildInt8InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt8(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt negative int8 value", () => {
+				const PLAINTEXT = BigInt(-100)
+				const encrypted = buildInt8InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt8(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int8 min value (-128)", () => {
+				const PLAINTEXT = BigInt(-128)
+				const encrypted = buildInt8InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt8(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int8 max value (127)", () => {
+				const PLAINTEXT = BigInt(127)
+				const encrypted = buildInt8InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt8(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt zero", () => {
+				const PLAINTEXT = BigInt(0)
+				const encrypted = buildInt8InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt8(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+		})
+
+		describe("decryptInt16", () => {
+			test("decrypt positive int16 value", () => {
+				const PLAINTEXT = BigInt(20000)
+				const encrypted = buildInt16InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt16(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt negative int16 value", () => {
+				const PLAINTEXT = BigInt(-20000)
+				const encrypted = buildInt16InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt16(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int16 min value (-32768)", () => {
+				const PLAINTEXT = BigInt(-32768)
+				const encrypted = buildInt16InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt16(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int16 max value (32767)", () => {
+				const PLAINTEXT = BigInt(32767)
+				const encrypted = buildInt16InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt16(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+		})
+
+		describe("decryptInt32", () => {
+			test("decrypt positive int32 value", () => {
+				const PLAINTEXT = BigInt(1000000000)
+				const encrypted = buildInt32InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt32(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt negative int32 value", () => {
+				const PLAINTEXT = BigInt(-1000000000)
+				const encrypted = buildInt32InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt32(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int32 min value (-2147483648)", () => {
+				const PLAINTEXT = BigInt(-2147483648)
+				const encrypted = buildInt32InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt32(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int32 max value (2147483647)", () => {
+				const PLAINTEXT = BigInt(2147483647)
+				const encrypted = buildInt32InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt32(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+		})
+
+		describe("decryptInt64", () => {
+			test("decrypt positive int64 value", () => {
+				const PLAINTEXT = BigInt("4611686018427387903")
+				const encrypted = buildInt64InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt64(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt negative int64 value", () => {
+				const PLAINTEXT = BigInt("-4611686018427387904")
+				const encrypted = buildInt64InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt64(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int64 min value (-9223372036854775808)", () => {
+				const PLAINTEXT = BigInt("-9223372036854775808")
+				const encrypted = buildInt64InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt64(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int64 max value (9223372036854775807)", () => {
+				const PLAINTEXT = BigInt("9223372036854775807")
+				const encrypted = buildInt64InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt64(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+		})
+
+		describe("decryptInt128", () => {
+			test("decrypt positive int128 value", () => {
+				const PLAINTEXT = BigInt("85070591730234615865843651857942052863")
+				const encrypted = buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt128(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt negative int128 value", () => {
+				const PLAINTEXT = BigInt("-85070591730234615865843651857942052864")
+				const encrypted = buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt128(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int128 min value (-170141183460469231731687303715884105728)", () => {
+				const PLAINTEXT = BigInt("-170141183460469231731687303715884105728")
+				const encrypted = buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt128(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int128 max value (170141183460469231731687303715884105727)", () => {
+				const PLAINTEXT = BigInt("170141183460469231731687303715884105727")
+				const encrypted = buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt128(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt zero", () => {
+				const PLAINTEXT = BigInt(0)
+				const encrypted = buildInt128InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt128(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+		})
+
+		describe("decryptInt256", () => {
+			test("decrypt positive int256 value", () => {
+				const PLAINTEXT = BigInt("28948022309329048855892746252171976963317496166410141009864396001978282409983")
+				const encrypted = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt256(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt negative int256 value", () => {
+				const PLAINTEXT = BigInt("-28948022309329048855892746252171976963317496166410141009864396001978282409984")
+				const encrypted = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt256(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int256 min value", () => {
+				const PLAINTEXT = BigInt("-57896044618658097711785492504343953926634992332820282019728792003956564819968")
+				const encrypted = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt256(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt int256 max value", () => {
+				const PLAINTEXT = BigInt("57896044618658097711785492504343953926634992332820282019728792003956564819967")
+				const encrypted = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt256(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt zero", () => {
+				const PLAINTEXT = BigInt(0)
+				const encrypted = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt256(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt small positive value", () => {
+				const PLAINTEXT = BigInt(12345)
+				const encrypted = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt256(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt small negative value", () => {
+				const PLAINTEXT = BigInt(-12345)
+				const encrypted = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt256(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
+			})
+
+			test("decrypt -1 (all bits set)", () => {
+				const PLAINTEXT = BigInt(-1)
+				const encrypted = buildInt256InputText(PLAINTEXT, { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY }, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+				const decrypted = decryptInt256(encrypted.ciphertext, USER_KEY)
+				expect(decrypted).toBe(PLAINTEXT)
 			})
 		})
 	})

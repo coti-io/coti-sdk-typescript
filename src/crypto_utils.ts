@@ -13,18 +13,39 @@ import {
     ctUint64,
     ctUint128,
     ctUint256,
+    ctInt8,
+    ctInt16,
+    ctInt32,
+    ctInt64,
+    ctInt128,
+    ctInt256,
     itString,
     itUint8,
     itUint16,
     itUint32,
     itUint64,
     itUint128,
-    itUint256
+    itUint256,
+    itInt8,
+    itInt16,
+    itInt32,
+    itInt64,
+    itInt128,
+    itInt256
 } from './types';
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
 const EIGHT_BYTES = 8
+
+function validateBigIntRange(plaintext: unknown, min: bigint, max: bigint, typeName: string) {
+    if (typeof plaintext !== "bigint") {
+        throw new TypeError(`Plaintext for ${typeName} must be a BigInt value.`)
+    }
+    if ((plaintext as bigint) < min || (plaintext as bigint) > max) {
+        throw new RangeError(`Plaintext for ${typeName} must be in [${min.toString()}, ${max.toString()}].`)
+    }
+}
 
 export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: Uint8Array; r: Uint8Array } {
     // Ensure plaintext is smaller than 128 bits (16 bytes)
@@ -200,6 +221,7 @@ export function buildUint8InputText(
     contractAddress: string,
     functionSelector: string
 ): itUint8 {
+    validateBigIntRange(plaintext, 0n, 255n, "uint8")
     return buildInputText(plaintext, sender, contractAddress, functionSelector)
 }
 
@@ -209,6 +231,7 @@ export function buildUint16InputText(
     contractAddress: string,
     functionSelector: string
 ): itUint16 {
+    validateBigIntRange(plaintext, 0n, 65535n, "uint16")
     return buildInputText(plaintext, sender, contractAddress, functionSelector)
 }
 
@@ -218,6 +241,7 @@ export function buildUint32InputText(
     contractAddress: string,
     functionSelector: string
 ): itUint32 {
+    validateBigIntRange(plaintext, 0n, 4294967295n, "uint32")
     return buildInputText(plaintext, sender, contractAddress, functionSelector)
 }
 
@@ -227,6 +251,7 @@ export function buildUint64InputText(
     contractAddress: string,
     functionSelector: string
 ): itUint64 {
+    validateBigIntRange(plaintext, 0n, 18446744073709551615n, "uint64")
     return buildInputText(plaintext, sender, contractAddress, functionSelector)
 }
 
@@ -236,19 +261,8 @@ export function buildUint128InputText(
     contractAddress: string,
     functionSelector: string
 ): itUint128 {
-    // Type validation
-    if (typeof plaintext !== "bigint") {
-        throw new TypeError("Plaintext must be a BigInt value.")
-    }
-
-    // Range validation
-    if (plaintext < 0) {
-        throw new RangeError("Plaintext must be a non-negative value.")
-    }
-
-    if (plaintext >= BigInt(2) ** BigInt(128)) {
-        throw new RangeError("Plaintext size must be 128 bits or smaller.")
-    }
+    // Type and range validation for uint128
+    validateBigIntRange(plaintext, 0n, (1n << 128n) - 1n, "uint128")
 
     // Convert to hex string and ensure it is 32 characters (16 bytes)
     const hexString = plaintext.toString(16).padStart(32, '0');
@@ -275,19 +289,8 @@ export function buildUint256InputText(
     contractAddress: string,
     functionSelector: string
 ): itUint256 {
-    // Type validation
-	if (typeof plaintext !== "bigint") {
-		throw new TypeError("Plaintext must be a BigInt value.")
-	}
-
-	// Range validation
-	if (plaintext < 0) {
-		throw new RangeError("Plaintext must be a non-negative value.")
-	}
-
-	if (plaintext >= BigInt(2) ** BigInt(256)) {
-		throw new RangeError("Plaintext size must be 256 bits or smaller.")
-	}
+    // Type and range validation for uint256
+    validateBigIntRange(plaintext, 0n, (1n << 256n) - 1n, "uint256")
     
     // Convert to hex string and ensure it is 64 characters (32 bytes)
     const hexString = plaintext.toString(16).padStart(64, '0');
@@ -402,12 +405,15 @@ export function decryptUint256(ciphertext: ctUint256, userKey: string): bigint {
     const high = decryptUint128(ciphertext.high, userKey)
     const low = decryptUint128(ciphertext.low, userKey)
   
-    // Convert both high and low parts to hex strings, ensuring they are 16 characters (8 bytes) long
-    let highHex = high.toString(16).padStart(32, '0');
-    let lowHex = low.toString(16).padStart(32, '0');
-  
-    // Concatenate and convert back to a single bigint
-    return BigInt(`0x${highHex + lowHex}`);
+    // Reconstruct the full 256-bit unsigned value
+    const unsigned = (high << 128n) | low;
+    
+    // Convert from unsigned to signed using two's complement for 256-bit
+    const maxInt256 = (1n << 255n) - 1n;
+    if (unsigned > maxInt256) {
+        return unsigned - (1n << 256n);
+    }
+    return unsigned;
 }
 
 export function decryptString(ciphertext: ctString, userKey: string): string {
@@ -489,4 +495,208 @@ export function encryptNumber(r: string | Uint8Array, key: Uint8Array) {
     const encryptedR = encodeString(cipher.output.data).slice(0, BLOCK_SIZE)
 
     return encryptedR
+}
+
+// Signed integer equivalents
+export function buildInt8InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itInt8 {
+    validateBigIntRange(plaintext, -128n, 127n, "int8")
+    
+    // Convert negative values to unsigned representation using two's complement
+    let value = plaintext;
+    if (plaintext < 0n) {
+        value = (1n << 8n) + plaintext; // 256 + plaintext for 8-bit
+    }
+    
+    return buildInputText(value, sender, contractAddress, functionSelector)
+}
+
+export function buildInt16InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itInt16 {
+    validateBigIntRange(plaintext, -32768n, 32767n, "int16")
+    
+    // Convert negative values to unsigned representation using two's complement
+    let value = plaintext;
+    if (plaintext < 0n) {
+        value = (1n << 16n) + plaintext; // 65536 + plaintext for 16-bit
+    }
+    
+    return buildInputText(value, sender, contractAddress, functionSelector)
+}
+
+export function buildInt32InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itInt32 {
+    validateBigIntRange(plaintext, -2147483648n, 2147483647n, "int32")
+    
+    // Convert negative values to unsigned representation using two's complement
+    let value = plaintext;
+    if (plaintext < 0n) {
+        value = (1n << 32n) + plaintext; // 4294967296 + plaintext for 32-bit
+    }
+    
+    return buildInputText(value, sender, contractAddress, functionSelector)
+}
+
+export function buildInt64InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itInt64 {
+    validateBigIntRange(plaintext, -9223372036854775808n, 9223372036854775807n, "int64")
+    
+    // Convert negative values to unsigned representation using two's complement
+    let value = plaintext;
+    if (plaintext < 0n) {
+        value = (1n << 64n) + plaintext; // 18446744073709551616 + plaintext for 64-bit
+    }
+    
+    return buildInputText(value, sender, contractAddress, functionSelector)
+}
+
+export function buildInt128InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itInt128 {
+    // Type and range validation for int128
+    validateBigIntRange(plaintext, -(1n << 127n), (1n << 127n) - 1n, "int128")
+
+    // Convert to hex string and ensure it is 32 characters (16 bytes), handling two's complement for negatives
+    let value = plaintext;
+    if (plaintext < 0n) {
+        value = (1n << 128n) + plaintext;
+    }
+    const hexString = value.toString(16).padStart(32, '0');
+
+    // Split into two 8-byte (16-character) segments
+    const high = hexString.slice(0, 16);
+    const low = hexString.slice(16, 32);
+
+    const itHigh = buildInputText(BigInt(`0x${high}`), sender, contractAddress, functionSelector)
+    const itLow = buildInputText(BigInt(`0x${low}`), sender, contractAddress, functionSelector)
+
+    return {
+        ciphertext: {
+            high: itHigh.ciphertext,
+            low: itLow.ciphertext
+        },
+        signature: [itHigh.signature, itLow.signature]
+    }
+}
+
+export function buildInt256InputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itInt256 {
+    // Type and range validation for int256
+    validateBigIntRange(plaintext, -(1n << 255n), (1n << 255n) - 1n, "int256")
+
+    // Convert to hex string and ensure it is 64 characters (32 bytes), handling two's complement for negatives
+    let value = plaintext;
+    if (plaintext < 0n) {
+        value = (1n << 256n) + plaintext;
+    }
+    const hexString = value.toString(16).padStart(64, '0');
+
+    // Split into two 16-byte (32-character) segments
+    const high = hexString.slice(0, 32);
+    const low = hexString.slice(32, 64);
+
+    const itHigh = buildUint128InputText(BigInt(`0x${high}`), sender, contractAddress, functionSelector)
+    const itLow = buildUint128InputText(BigInt(`0x${low}`), sender, contractAddress, functionSelector)
+
+    return {
+        ciphertext: {
+            high: itHigh.ciphertext,
+            low: itLow.ciphertext
+        },
+        signature: [itHigh.signature, itLow.signature]
+    }
+}
+
+// Signed integer decrypt functions
+export function decryptInt8(ciphertext: ctInt8, userKey: string): bigint {
+    const unsigned = decryptUint(ciphertext, userKey)
+    // Convert from unsigned to signed using two's complement
+    if (unsigned > 127n) {
+        return unsigned - 256n
+    }
+    return unsigned
+}
+
+export function decryptInt16(ciphertext: ctInt16, userKey: string): bigint {
+    const unsigned = decryptUint(ciphertext, userKey)
+    // Convert from unsigned to signed using two's complement
+    if (unsigned > 32767n) {
+        return unsigned - 65536n
+    }
+    return unsigned
+}
+
+export function decryptInt32(ciphertext: ctInt32, userKey: string): bigint {
+    const unsigned = decryptUint(ciphertext, userKey)
+    // Convert from unsigned to signed using two's complement
+    if (unsigned > 2147483647n) {
+        return unsigned - 4294967296n
+    }
+    return unsigned
+}
+
+export function decryptInt64(ciphertext: ctInt64, userKey: string): bigint {
+    const unsigned = decryptUint(ciphertext, userKey)
+    // Convert from unsigned to signed using two's complement
+    if (unsigned > 9223372036854775807n) {
+        return unsigned - 18446744073709551616n
+    }
+    return unsigned
+}
+
+export function decryptInt128(ciphertext: ctInt128, userKey: string): bigint {
+    const high = decryptUint(ciphertext.high, userKey)
+    const low = decryptUint(ciphertext.low, userKey)
+  
+    // Convert both high and low parts to hex strings, ensuring they are 16 characters (8 bytes) long
+    let highHex = high.toString(16).padStart(16, '0');
+    let lowHex = low.toString(16).padStart(16, '0');
+  
+    // Concatenate and convert back to a single bigint
+    const unsigned = BigInt(`0x${highHex + lowHex}`);
+    
+    // Convert from unsigned to signed using two's complement for 128-bit
+    const maxInt128 = (1n << 127n) - 1n;
+    if (unsigned > maxInt128) {
+        return unsigned - (1n << 128n);
+    }
+    return unsigned;
+}
+
+export function decryptInt256(ciphertext: ctInt256, userKey: string): bigint {
+    const high = decryptUint128(ciphertext.high, userKey)
+    const low = decryptUint128(ciphertext.low, userKey)
+  
+    // Reconstruct the full 256-bit unsigned value
+    const unsigned = (high << 128n) | low;
+    
+    // Convert from unsigned to signed using two's complement for 256-bit
+    const maxInt256 = (1n << 255n) - 1n;
+    if (unsigned > maxInt256) {
+        return unsigned - (1n << 256n);
+    }
+    return unsigned;
 }
