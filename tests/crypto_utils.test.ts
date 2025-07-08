@@ -860,7 +860,7 @@ describe('crypto_utils', () => {
 			)
 
 			expect(result.ciphertext.low.low).toBe(expectedLowResult.ciphertext)
-			expect(result.ciphertext.low.high).toBe(expectedLowResult.ciphertext)
+			expect(result.ciphertext.low.high).toBe(expectedHighResult.ciphertext)
 			expect(result.ciphertext.high.low).toBe(expectedZeroResult.ciphertext) // should be zero
 			expect(result.ciphertext.high.high).toBe(expectedZeroResult.ciphertext) // should be zero
 		})
