@@ -173,9 +173,9 @@ export function generateRSAKeyPair(): { publicKey: Uint8Array; privateKey: Uint8
 }
 
 export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
-    // Load the private key in PEM format
-    let privateKeyPEM = Buffer.from(privateKey).toString('base64')
-    privateKeyPEM = `-----BEGIN PRIVATE KEY-----\n${privateKeyPEM}\n-----END PRIVATE KEY-----`
+    // Convert DER-encoded private key to PEM format
+    const privateKeyBuffer = Buffer.from(privateKey)
+    const privateKeyPEM = `-----BEGIN PRIVATE KEY-----\n${privateKeyBuffer.toString('base64')}\n-----END PRIVATE KEY-----`
 
     // Decrypt the ciphertext using RSA-OAEP
     const decrypted = crypto.privateDecrypt({
@@ -616,21 +616,19 @@ export function generateRandomAesKeySizeNumber(): string {
 export function writeBigUInt128BE(buffer: Uint8Array, value: bigint, offset: number = 0): void {
     const hexString = value.toString(HEX_BASE).padStart(CT_SIZE, '0')
     const bytes = Buffer.from(hexString, 'hex')
-    const bufferArray = new Uint8Array(buffer)
     for (let i = 0; i < bytes.length; i++) {
-        bufferArray[offset + i] = bytes[i]
+        buffer[offset + i] = bytes[i]
     }
 }
 
 export function writeBigUInt256BE(buffer: Uint8Array, value: bigint, offset: number = 0): void {
     const hexString = value.toString(HEX_BASE).padStart(CT_SIZE * 2, '0')
     const bytes = Buffer.from(hexString, 'hex')
-    const bufferArray = new Uint8Array(buffer)
     if (buffer.length > bytes.length) {
         offset = buffer.length - bytes.length
     }
     for (let i = 0; i < bytes.length; i++) {
-        bufferArray[offset + i] = bytes[i]
+        buffer[offset + i] = bytes[i]
     }
 }
 
@@ -895,8 +893,8 @@ export function decryptInt128(ciphertext: ctInt128, userKey: string): bigint {
 }
 
 export function decryptInt256(ciphertext: ctInt256, userKey: string): bigint {
-    const high = decryptInt128(ciphertext.ciphertextHigh, userKey)
-    const low = decryptInt128(ciphertext.ciphertextLow, userKey)
+    const high = decryptUint128(ciphertext.ciphertextHigh, userKey)
+    const low = decryptUint128(ciphertext.ciphertextLow, userKey)
   
     // Reconstruct the full 256-bit unsigned value
     const unsigned = (high << 128n) | low;

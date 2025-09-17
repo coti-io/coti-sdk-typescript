@@ -11,10 +11,19 @@
   "author": "COTI Development",
   "repository": {
     "type": "git",
-     "url": "git://github.com/coti-io/coti-sdk-typescript.git"
+    "url": "git://github.com/coti-io/coti-sdk-typescript.git"
   },
   "homepage": "https://docs.coti.io/coti-v2-documentation/build-on-coti/tools/typescript-sdk",
-  "keywords": ["coti", "privacy", "ethereum", "blockchain", "web3", "garbled-circuits", "l2", "on-chain-compute"],
+  "keywords": [
+    "coti",
+    "privacy",
+    "ethereum",
+    "blockchain",
+    "web3",
+    "garbled-circuits",
+    "l2",
+    "on-chain-compute"
+  ],
   "scripts": {
     "prepare": "tsc",
     "build": "tsc",
@@ -22,13 +31,9 @@
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
-    "@types/node-forge": "^1.3.11",
     "ethers": "^6.12.1",
     "ts-jest": "^29.2.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
-  },
-  "dependencies": {
-    "node-forge": "^1.3.1"
   }
 }
