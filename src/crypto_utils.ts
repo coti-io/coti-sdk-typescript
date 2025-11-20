@@ -1,10 +1,12 @@
 import forge from 'node-forge'
 import {BaseWallet, getBytes, SigningKey, solidityPackedKeccak256} from "ethers"
-import { ctString, ctUint, itString, itUint } from './types';
+import { ctString, ctUint, ctUint256, itString, itUint, itUint256 } from './types';
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
 const EIGHT_BYTES = 8
+const MAX_PLAINTEXT_BIT_SIZE = 256
+const CT_SIZE = 32
 
 export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: Uint8Array; r: Uint8Array } {
     // Ensure plaintext is smaller than 128 bits (16 bytes)
@@ -34,9 +36,14 @@ export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: U
     }
 }
 
-export function decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array): Uint8Array {
+export function decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array, r2: Uint8Array | null = null, ciphertext2: Uint8Array | null = null): Uint8Array {
     if (ciphertext.length !== BLOCK_SIZE) {
         throw new RangeError("Ciphertext size must be 128 bits.")
+    }
+
+    // Ensure key size is 128 bits (16 bytes)
+    if (key.length !== BLOCK_SIZE) {
+        throw new RangeError("Key size must be 128 bits.")
     }
 
     // Ensure random size is 128 bits (16 bytes)
@@ -44,14 +51,46 @@ export function decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array):
         throw new RangeError("Random size must be 128 bits.")
     }
 
+    if (r2 !== null) {
+        if (r2.length !== BLOCK_SIZE) {
+            throw new RangeError("Random2 size must be 128 bits, received " + r2.length + " bytes.")
+        }
+        if (ciphertext2 === null) {
+            throw new RangeError("Ciphertext2 is required.")
+        }
+    }
+
+    if (ciphertext2 !== null) {
+        if (ciphertext2.length !== BLOCK_SIZE) {
+            throw new RangeError("Ciphertext2 size must be 128 bits, received " + ciphertext2.length + " bytes.")
+        }
+
+        if (r2 === null) {
+            throw new RangeError("Random2 is required.")
+        }
+    }
+
     // Get the encrypted random value 'r'
     const encryptedR = encryptNumber(r, key)
 
     // XOR the encrypted random value 'r' with the ciphertext to obtain the plaintext
-    const plaintext = new Uint8Array(BLOCK_SIZE)
+    let plaintext = new Uint8Array(BLOCK_SIZE)
 
     for (let i = 0; i < encryptedR.length; i++) {
         plaintext[i] = encryptedR[i] ^ ciphertext[i]
+    }
+
+    if (r2 !== null && ciphertext2 !== null) {
+        // Encrypt the random value 'r2' using AES in ECB mode
+        const encryptedR2 = encryptNumber(r2, key)
+
+        // XOR the encrypted random value 'r2' with the ciphertext2 to obtain the plaintext2
+        const plaintext2 = new Uint8Array(BLOCK_SIZE)
+        for (let i = 0; i < encryptedR2.length; i++) {
+            plaintext2[i] = encryptedR2[i] ^ ciphertext2[i]
+        }
+
+        plaintext = new Uint8Array([...plaintext, ...plaintext2])
     }
 
     return plaintext
@@ -236,6 +275,54 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
     return decodeUint(decryptedMessage)
 }
 
+/**
+ * Decrypts a 256-bit ciphertext (ctUint256) using the user's AES key.
+ * @param {ctUint256} ciphertext - The 256-bit ciphertext object with ciphertextHigh and ciphertextLow.
+ * @param {string} userKey - The user's AES key as a hex string (32 characters).
+ * @returns {bigint} - The decrypted plaintext as a BigInt.
+ */
+export function decryptUint256(ciphertext: ctUint256, userKey: string): bigint {
+
+    // Convert ciphertextHigh to Uint8Array
+    let ctHighArray = new Uint8Array()
+    let ctHigh = ciphertext.ciphertextHigh
+
+    while (ctHigh > 0) {
+        const temp = new Uint8Array([Number(ctHigh & BigInt(255))])
+        ctHighArray = new Uint8Array([...temp, ...ctHighArray])
+        ctHigh >>= BigInt(8)
+    }
+
+    ctHighArray = new Uint8Array([...new Uint8Array(CT_SIZE - ctHighArray.length), ...ctHighArray])
+
+    // Convert ciphertextLow to Uint8Array
+    let ctLowArray = new Uint8Array()
+    let ctLow = ciphertext.ciphertextLow
+
+    while (ctLow > 0) {
+        const temp = new Uint8Array([Number(ctLow & BigInt(255))])
+        ctLowArray = new Uint8Array([...temp, ...ctLowArray])
+        ctLow >>= BigInt(8)
+    }
+
+    ctLowArray = new Uint8Array([...new Uint8Array(CT_SIZE - ctLowArray.length), ...ctLowArray])
+
+    // Split high part into cipher and r
+    const cipherHigh = ctHighArray.subarray(0, BLOCK_SIZE)
+    const rHigh = ctHighArray.subarray(BLOCK_SIZE)
+
+    // Split low part into cipher and r
+    const cipherLow = ctLowArray.subarray(0, BLOCK_SIZE)
+    const rLow = ctLowArray.subarray(BLOCK_SIZE)
+
+    const userKeyBytes = encodeKey(userKey)
+
+    // Decrypt both parts using the decrypt function
+    const decryptedMessage = decrypt(userKeyBytes, rHigh, cipherHigh, rLow, cipherLow)
+
+    return decodeUint(decryptedMessage)
+}
+
 export function decryptString(ciphertext: ctString, userKey: string): string {
     let encodedStr = new Uint8Array()
 
@@ -311,8 +398,132 @@ export function encryptNumber(r: string | Uint8Array, key: Uint8Array) {
     cipher.update(forge.util.createBuffer(r))
     cipher.finish()
 
-    // Get the encrypted random value 'r' as a Buffer and ensure it's exactly 16 bytes
+    // Get the encrypted random value 'r' and ensure it's exactly 16 bytes
     const encryptedR = encodeString(cipher.output.data).slice(0, BLOCK_SIZE)
 
     return encryptedR
+}
+
+// ---------- Helper Functions for IT Preparation ----------
+function writeBigUInt128BE(buf: Uint8Array, value: bigint) {
+    for (let i = 15; i >= 0; i--) {
+        buf[i] = Number(value & BigInt(0xff))
+        value >>= BigInt(8)
+    }
+}
+
+function writeBigUInt256BE(buf: Uint8Array, value: bigint) {
+    for (let i = 31; i >= 0; i--) {
+        buf[i] = Number(value & BigInt(0xff))
+        value >>= BigInt(8)
+    }
+}
+
+function signIT(sender: Uint8Array, contract: Uint8Array, hashFunc: Uint8Array, ct: Uint8Array, signingKey: Uint8Array): Uint8Array {
+    const key = new SigningKey(signingKey)
+    const message = solidityPackedKeccak256(["bytes", "bytes", "bytes4", "bytes"], [sender, contract, hashFunc, ct])
+    const sig = key.sign(message)
+    return new Uint8Array([...getBytes(sig.r), ...getBytes(sig.s), ...getBytes(`0x0${sig.v - 27}`)])
+}
+
+export function prepareIT(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string
+): itUint {
+    const plaintextBigInt = BigInt(plaintext)
+    const bitSize = plaintextBigInt.toString(2).length
+    
+    if (bitSize > MAX_PLAINTEXT_BIT_SIZE / 2) { 
+        throw new RangeError("Plaintext size must be 128 bits or smaller. To prepare a 256 bit plaintext, use prepareIT256 instead.")
+    }
+
+    // Convert the plaintext to bytes
+    const plaintextBytes = encodeUint(plaintext)
+
+    // Convert user key to bytes
+    const keyBytes = encodeKey(sender.userKey)
+
+    // Encrypt the plaintext using AES key
+    const {ciphertext, r} = encrypt(keyBytes, plaintextBytes)
+    const ct = new Uint8Array([...ciphertext, ...r])
+
+    // Convert the ciphertext to BigInt
+    const ctInt = decodeUint(ct)
+
+    const signature = signInputText(sender, contractAddress, functionSelector, ctInt);
+
+    return {
+        ciphertext: ctInt,
+        signature: signature
+    }
+}
+
+/**
+ * Prepares a 256-bit IT by encrypting both parts of the plaintext, signing the encrypted message,
+ * and packaging the resulting data for smart contract submission.
+ */
+export function prepareIT256(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string,
+): itUint256 {
+    const plaintextBigInt = BigInt(plaintext)
+    const bitSize = plaintextBigInt.toString(2).length
+    if (bitSize > MAX_PLAINTEXT_BIT_SIZE) {
+        throw new RangeError("Plaintext size must be 256 bits or smaller.")
+    }
+
+    const userAesKey = encodeKey(sender.userKey)
+    const senderBytes = getBytes(sender.wallet.address)
+    const contractBytes = getBytes(contractAddress)
+    const hashFuncBytes = getBytes(functionSelector)
+    const signingKeyBytes = getBytes(sender.wallet.privateKey)
+
+    let ct = new Uint8Array(0)
+
+    if (bitSize <= MAX_PLAINTEXT_BIT_SIZE / 2) {
+        const plaintextBytes = new Uint8Array(BLOCK_SIZE)
+        writeBigUInt128BE(plaintextBytes, plaintextBigInt)
+        const { ciphertext, r } = encrypt(userAesKey, plaintextBytes)
+
+        const zero = BigInt(0)
+        const zeroBytes = new Uint8Array(BLOCK_SIZE)
+        writeBigUInt128BE(zeroBytes, zero)
+        const { ciphertext: ciphertextHigh, r: rHigh } = encrypt(userAesKey, zeroBytes)
+
+        ct = new Uint8Array([...ciphertextHigh, ...rHigh, ...ciphertext, ...r])
+    } else {
+        const plaintextBytes = new Uint8Array(CT_SIZE)
+        writeBigUInt256BE(plaintextBytes, plaintextBigInt)
+        const high = encrypt(userAesKey, plaintextBytes.slice(0, BLOCK_SIZE))
+        const low = encrypt(userAesKey, plaintextBytes.slice(BLOCK_SIZE))
+        ct = new Uint8Array([...high.ciphertext, ...high.r, ...low.ciphertext, ...low.r])
+    }
+
+
+    const signature = signIT(senderBytes, contractBytes, hashFuncBytes, ct, signingKeyBytes)
+    const ciphertextHigh = ct.slice(0, CT_SIZE)
+    const ciphertextLow = ct.slice(CT_SIZE)
+
+    // Convert Uint8Array to hex string
+    const ciphertextHighHex = Array.from(ciphertextHigh)
+        .map(byte => byte.toString(16).padStart(2, '0'))
+        .join('')
+    const ciphertextLowHex = Array.from(ciphertextLow)
+        .map(byte => byte.toString(16).padStart(2, '0'))
+        .join('')
+
+    const ciphertextHighUint = BigInt('0x' + ciphertextHighHex)
+    const ciphertextLowUint = BigInt('0x' + ciphertextLowHex)
+
+    return { 
+        ciphertext: { 
+            ciphertextHigh: ciphertextHighUint, 
+            ciphertextLow: ciphertextLowUint 
+        }, 
+        signature 
+    }
 }

@@ -7,11 +7,14 @@ import {
     decryptRSA,
     decryptString,
     decryptUint,
+    decryptUint256,
     encodeKey,
     encodeString,
     encodeUint,
     encrypt,
     encryptNumber,
+    prepareIT,
+    prepareIT256,
     sign,
     signInputText
 } from '../src'
@@ -320,7 +323,7 @@ describe('crypto_utils', () => {
         })
     })
 
-    describe('buildInputText', () => {
+    describe('prepareIT', () => {
         const PRIVATE_KEY = '0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'
         const USER_KEY = '4b0418c1543dbe70f215175bcddfac42'
         const CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000001'
@@ -349,84 +352,1114 @@ describe('crypto_utils', () => {
             expect(signature).toEqual(SIGNATURE)
         })
 
-        test('throw RangeError when the value of plaintext is greater than (2 ^ 64) - 1', () => {
-            const PLAINTEXT = BigInt(2) ** BigInt(64)
-            const CIPHERTEXT = BigInt('')
-            const SIGNATURE = new Uint8Array([])
+        test('build input text with 80-bit value (larger than 70 bits)', () => {
+            const PLAINTEXT = (2n ** 80n) - 1n // 80-bit max value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(80)
     
-            expect(() => buildInputText(
+            const {ciphertext, signature} = prepareIT(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+    
+            // Verify it returns valid ciphertext and signature
+            expect(typeof ciphertext).toBe('bigint')
+            expect(ciphertext).toBeGreaterThan(0n)
+            expect(signature).toBeInstanceOf(Uint8Array)
+            expect(signature.length).toBeGreaterThan(0)
+        })
+
+        test('build input text with 100-bit value', () => {
+            const PLAINTEXT = (2n ** 100n) - 1n // 100-bit max value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(100)
+    
+            const {ciphertext, signature} = prepareIT(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+    
+            expect(typeof ciphertext).toBe('bigint')
+            expect(ciphertext).toBeGreaterThan(0n)
+            expect(signature).toBeInstanceOf(Uint8Array)
+            expect(signature.length).toBeGreaterThan(0)
+        })
+
+        test('build input text with 120-bit value', () => {
+            const PLAINTEXT = (2n ** 120n) - 1n // 120-bit max value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(120)
+    
+            const {ciphertext, signature} = prepareIT(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+    
+            expect(typeof ciphertext).toBe('bigint')
+            expect(ciphertext).toBeGreaterThan(0n)
+            expect(signature).toBeInstanceOf(Uint8Array)
+            expect(signature.length).toBeGreaterThan(0)
+        })
+
+        test('build input text with 127-bit value (near 128-bit limit)', () => {
+            const PLAINTEXT = (2n ** 127n) - 1n // 127-bit max value (largest before 128-bit)
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(127)
+    
+            const {ciphertext, signature} = prepareIT(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+    
+            expect(typeof ciphertext).toBe('bigint')
+            expect(ciphertext).toBeGreaterThan(0n)
+            expect(signature).toBeInstanceOf(Uint8Array)
+            expect(signature.length).toBeGreaterThan(0)
+        })
+
+        test('build input text with exactly 128-bit value', () => {
+            const PLAINTEXT = (2n ** 128n) - 1n // Exactly 128 bits
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(128)
+    
+            const {ciphertext, signature} = prepareIT(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+    
+            expect(typeof ciphertext).toBe('bigint')
+            expect(ciphertext).toBeGreaterThan(0n)
+            expect(signature).toBeInstanceOf(Uint8Array)
+            expect(signature.length).toBeGreaterThan(0)
+        })
+
+        test('throw RangeError when the value of plaintext is greater than 128 bits', () => {
+            const PLAINTEXT = 2n ** 128n // 129 bits (exceeds 128-bit limit)
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(129)
+    
+            expect(() => prepareIT(
                 PLAINTEXT,
                 { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
                 CONTRACT_ADDRESS,
                 FUNCTION_SELECTOR
             )).toThrow(RangeError)
+            
+            expect(() => prepareIT(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )).toThrow("Plaintext size must be 128 bits or smaller")
+        })
+
+        test('encrypt and decrypt round-trip with 100-bit value', () => {
+            const PLAINTEXT = (2n ** 100n) - 12345n // 100-bit value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(100)
+    
+            // Encrypt
+            const {ciphertext} = prepareIT(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+    
+            // Decrypt
+            const decrypted = decryptUint(ciphertext, USER_KEY)
+    
+            // Verify round-trip
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('encrypt and decrypt round-trip with 128-bit value', () => {
+            const PLAINTEXT = (2n ** 128n) - 1n // Maximum 128-bit value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(128)
+    
+            // Encrypt
+            const {ciphertext} = prepareIT(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+    
+            // Decrypt
+            const decrypted = decryptUint(ciphertext, USER_KEY)
+    
+            // Verify round-trip
+            expect(decrypted).toEqual(PLAINTEXT)
         })
     })
 
-    test('decryptUint - decrypt the ciphertext of an arbitrary unsigned integer', () => {
+    describe('decryptUint', () => {
         const USER_KEY = '4b0418c1543dbe70f215175bcddfac42'
-        const CIPHERTEXT = BigInt('57746566665648186614314868401232944930131032659899191889449469207176985595728')
-        const PLAINTEXT = BigInt(123456789)
 
-        const plaintext = decryptUint(CIPHERTEXT, USER_KEY)
+        test('decrypt the ciphertext of an arbitrary unsigned integer', () => {
+            const CIPHERTEXT = BigInt('57746566665648186614314868401232944930131032659899191889449469207176985595728')
+            const PLAINTEXT = BigInt(123456789)
 
-        expect(plaintext).toEqual(PLAINTEXT)
+            const plaintext = decryptUint(CIPHERTEXT, USER_KEY)
+
+            expect(plaintext).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint with 8-bit value', () => {
+            const PLAINTEXT = 255n // 8-bit max
+            const {ciphertext} = buildInputText(
+                PLAINTEXT,
+                { wallet: new Wallet('0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'), userKey: USER_KEY },
+                '0x0000000000000000000000000000000000000001',
+                '0x11223344'
+            )
+
+            const decrypted = decryptUint(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint with 16-bit value', () => {
+            const PLAINTEXT = 65535n // 16-bit max
+            const {ciphertext} = buildInputText(
+                PLAINTEXT,
+                { wallet: new Wallet('0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'), userKey: USER_KEY },
+                '0x0000000000000000000000000000000000000001',
+                '0x11223344'
+            )
+
+            const decrypted = decryptUint(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint with 32-bit value', () => {
+            const PLAINTEXT = 4294967295n // 32-bit max
+            const {ciphertext} = buildInputText(
+                PLAINTEXT,
+                { wallet: new Wallet('0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'), userKey: USER_KEY },
+                '0x0000000000000000000000000000000000000001',
+                '0x11223344'
+            )
+
+            const decrypted = decryptUint(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint with 64-bit value', () => {
+            const PLAINTEXT = (2n ** 64n) - 1n // 64-bit max
+            const {ciphertext} = buildInputText(
+                PLAINTEXT,
+                { wallet: new Wallet('0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'), userKey: USER_KEY },
+                '0x0000000000000000000000000000000000000001',
+                '0x11223344'
+            )
+
+            const decrypted = decryptUint(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint with 128-bit value', () => {
+            const PLAINTEXT = (2n ** 128n) - 1n // 128-bit max
+            const {ciphertext} = prepareIT(
+                PLAINTEXT,
+                { wallet: new Wallet('0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'), userKey: USER_KEY },
+                '0x0000000000000000000000000000000000000001',
+                '0x11223344'
+            )
+
+            const decrypted = decryptUint(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint round-trip with zero value', () => {
+            const PLAINTEXT = 0n
+            const {ciphertext} = buildInputText(
+                PLAINTEXT,
+                { wallet: new Wallet('0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'), userKey: USER_KEY },
+                '0x0000000000000000000000000000000000000001',
+                '0x11223344'
+            )
+
+            const decrypted = decryptUint(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint round-trip with large value', () => {
+            const PLAINTEXT = 999999999999999999n
+            const {ciphertext} = buildInputText(
+                PLAINTEXT,
+                { wallet: new Wallet('0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'), userKey: USER_KEY },
+                '0x0000000000000000000000000000000000000001',
+                '0x11223344'
+            )
+
+            const decrypted = decryptUint(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
     })
 
-    test('buildStringInputText - build input text from an arbitrary string', () => {
+    describe('buildStringInputText', () => {
         const PRIVATE_KEY = '0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'
         const USER_KEY = '4b0418c1543dbe70f215175bcddfac42'
         const CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000001'
         const FUNCTION_SELECTOR = '0x11223344'
-        const PLAINTEXT = 'Hello, world!'
-        const CIPHERTEXT = {
-            value: [
-                BigInt('57746566665648186612944522626063785222404096210043977357972234971091066310480'),
-                BigInt('57746566665648186613850323260349401174634559897776223440098911426492276559696')
+
+        test('build input text from an arbitrary string', () => {
+            const PLAINTEXT = 'Hello, world!'
+            const CIPHERTEXT = {
+                value: [
+                    BigInt('57746566665648186612944522626063785222404096210043977357972234971091066310480'),
+                    BigInt('57746566665648186613850323260349401174634559897776223440098911426492276559696')
+                ]
+            }
+            const SIGNATURE = [
+                new Uint8Array([
+                    185,  23,  26, 248, 204,  91,  76,  38,  74, 134, 197,
+                    239, 191,  25, 146, 192,  27, 203, 247, 178,  51,  51,
+                        37, 114, 108, 120, 134, 245,  89, 134,  48,  40,  93,
+                        22,  11, 196, 188, 187, 132, 252,  21,  96, 178,  32,
+                        11, 212, 142, 112,  56,   7, 157,  41, 189,   1, 182,
+                    200, 164,  40, 210, 228,  61, 172, 218,  89,   1
+                ]),
+                new Uint8Array([
+                    251, 223, 172, 231,  18, 236, 180, 222, 133,  53, 186,
+                    245,  91, 242, 213, 109, 203, 216, 168,   7, 112,  62,
+                    131,  87, 213, 218,  90, 142, 181, 196,  33,  69, 115,
+                        40, 214, 233,  73,   5, 129, 140, 161,  56, 195, 110,
+                        96,  86,  73, 179,  59, 150, 116,  42, 140, 129,  71,
+                    186, 208, 122,  57, 154, 168,   9, 222, 251,   0
+                ])
             ]
-        }
-        const SIGNATURE = [
-            new Uint8Array([
-                185,  23,  26, 248, 204,  91,  76,  38,  74, 134, 197,
-                239, 191,  25, 146, 192,  27, 203, 247, 178,  51,  51,
-                    37, 114, 108, 120, 134, 245,  89, 134,  48,  40,  93,
-                    22,  11, 196, 188, 187, 132, 252,  21,  96, 178,  32,
-                    11, 212, 142, 112,  56,   7, 157,  41, 189,   1, 182,
-                200, 164,  40, 210, 228,  61, 172, 218,  89,   1
-            ]),
-            new Uint8Array([
-                251, 223, 172, 231,  18, 236, 180, 222, 133,  53, 186,
-                245,  91, 242, 213, 109, 203, 216, 168,   7, 112,  62,
-                131,  87, 213, 218,  90, 142, 181, 196,  33,  69, 115,
-                    40, 214, 233,  73,   5, 129, 140, 161,  56, 195, 110,
-                    96,  86,  73, 179,  59, 150, 116,  42, 140, 129,  71,
-                186, 208, 122,  57, 154, 168,   9, 222, 251,   0
-            ])
-        ]
 
-        const {ciphertext, signature} = buildStringInputText(
-            PLAINTEXT,
-            { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
-            CONTRACT_ADDRESS,
-            FUNCTION_SELECTOR
-        )
+            const {ciphertext, signature} = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
 
-        expect(ciphertext).toEqual(CIPHERTEXT)
-        expect(signature).toEqual(SIGNATURE)
+            expect(ciphertext).toEqual(CIPHERTEXT)
+            expect(signature).toEqual(SIGNATURE)
+        })
+
+        test('buildStringInputText with short string (less than 8 bytes)', () => {
+            const PLAINTEXT = 'Hi'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Should have exactly 1 chunk (padded to 8 bytes)
+            expect(result.ciphertext.value.length).toBe(1)
+            expect(result.signature.length).toBe(1)
+            expect(typeof result.ciphertext.value[0]).toBe('bigint')
+            expect(result.signature[0]).toBeInstanceOf(Uint8Array)
+            expect(result.signature[0].length).toBeGreaterThan(0)
+        })
+
+        test('buildStringInputText with exactly 8 bytes', () => {
+            const PLAINTEXT = '12345678'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Should have exactly 1 chunk
+            expect(result.ciphertext.value.length).toBe(1)
+            expect(result.signature.length).toBe(1)
+            expect(result.ciphertext.value[0]).toBeGreaterThan(0n)
+        })
+
+        test('buildStringInputText with 9 bytes (2 chunks)', () => {
+            const PLAINTEXT = '123456789'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Should have 2 chunks (8 bytes + 1 byte padded)
+            expect(result.ciphertext.value.length).toBe(2)
+            expect(result.signature.length).toBe(2)
+            expect(result.ciphertext.value[0]).toBeGreaterThan(0n)
+            expect(result.ciphertext.value[1]).toBeGreaterThan(0n)
+        })
+
+        test('buildStringInputText with long string (multiple chunks)', () => {
+            const PLAINTEXT = 'This is a longer string that will be split into multiple 8-byte chunks for encryption.'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Should have multiple chunks
+            const expectedChunks = Math.ceil(new TextEncoder().encode(PLAINTEXT).length / 8)
+            expect(result.ciphertext.value.length).toBe(expectedChunks)
+            expect(result.signature.length).toBe(expectedChunks)
+            
+            // All chunks should have valid ciphertext and signature
+            result.ciphertext.value.forEach(ct => {
+                expect(typeof ct).toBe('bigint')
+                expect(ct).toBeGreaterThan(0n)
+            })
+            result.signature.forEach(sig => {
+                expect(sig).toBeInstanceOf(Uint8Array)
+                expect(sig.length).toBeGreaterThan(0)
+            })
+        })
+
+        test('buildStringInputText with empty string', () => {
+            const PLAINTEXT = ''
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Empty string produces 0 chunks (loop doesn't execute)
+            expect(result.ciphertext.value.length).toBe(0)
+            expect(result.signature.length).toBe(0)
+            expect(Array.isArray(result.ciphertext.value)).toBe(true)
+            expect(Array.isArray(result.signature)).toBe(true)
+        })
+
+        test('buildStringInputText with special characters', () => {
+            const PLAINTEXT = 'Hello! @#$%^&*()_+-=[]{}|;:,.<>?/~`'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            expect(result.ciphertext.value.length).toBeGreaterThan(0)
+            expect(result.signature.length).toBe(result.ciphertext.value.length)
+            
+            // Verify structure
+            expect(result).toHaveProperty('ciphertext')
+            expect(result).toHaveProperty('signature')
+            expect(result.ciphertext).toHaveProperty('value')
+        })
+
+        test('buildStringInputText with unicode characters (basic)', () => {
+            const PLAINTEXT = 'Hello Café'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            expect(result.ciphertext.value.length).toBeGreaterThan(0)
+            expect(result.signature.length).toBe(result.ciphertext.value.length)
+        })
+
+        test('buildStringInputText with numbers and letters', () => {
+            const PLAINTEXT = 'ABC123xyz789'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            expect(result.ciphertext.value.length).toBeGreaterThan(0)
+            expect(result.signature.length).toBe(result.ciphertext.value.length)
+        })
+
+        test('buildStringInputText with newlines and tabs', () => {
+            const PLAINTEXT = 'Line 1\nLine 2\tTabbed'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            expect(result.ciphertext.value.length).toBeGreaterThan(0)
+            expect(result.signature.length).toBe(result.ciphertext.value.length)
+        })
+
+        test('buildStringInputText produces different ciphertexts for different strings', () => {
+            const PLAINTEXT1 = 'Hello'
+            const PLAINTEXT2 = 'World'
+
+            const result1 = buildStringInputText(
+                PLAINTEXT1,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const result2 = buildStringInputText(
+                PLAINTEXT2,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Ciphertexts should be different for different strings
+            expect(result1.ciphertext.value).not.toEqual(result2.ciphertext.value)
+        })
+
+        test('buildStringInputText produces different signatures for different contract addresses', () => {
+            const PLAINTEXT = 'Hello, world!'
+            const CONTRACT_ADDRESS2 = '0x0000000000000000000000000000000000000002'
+
+            const result1 = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const result2 = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS2,
+                FUNCTION_SELECTOR
+            )
+
+            // Signatures should be different for different contract addresses
+            expect(result1.signature).not.toEqual(result2.signature)
+        })
+
+        test('buildStringInputText produces different signatures for different function selectors', () => {
+            const PLAINTEXT = 'Hello, world!'
+            const FUNCTION_SELECTOR2 = '0x55667788'
+
+            const result1 = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const result2 = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR2
+            )
+
+            // Signatures should be different for different function selectors
+            expect(result1.signature).not.toEqual(result2.signature)
+        })
+
+        test('buildStringInputText verifies return structure', () => {
+            const PLAINTEXT = 'Test string'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Verify structure
+            expect(result).toHaveProperty('ciphertext')
+            expect(result).toHaveProperty('signature')
+            expect(result.ciphertext).toHaveProperty('value')
+            expect(Array.isArray(result.ciphertext.value)).toBe(true)
+            expect(Array.isArray(result.signature)).toBe(true)
+            expect(result.ciphertext.value.length).toBe(result.signature.length)
+            expect(result.ciphertext.value.length).toBeGreaterThan(0)
+        })
+
+        test('buildStringInputText round-trip encryption and decryption', () => {
+            const PLAINTEXT = 'This is a test string for round-trip encryption!'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Decrypt and verify
+            const decrypted = decryptString(result.ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('buildStringInputText with exactly 16 bytes (2 full chunks)', () => {
+            const PLAINTEXT = '1234567890123456'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Should have exactly 2 chunks
+            expect(result.ciphertext.value.length).toBe(2)
+            expect(result.signature.length).toBe(2)
+        })
+
+        test('buildStringInputText with exactly 24 bytes (3 full chunks)', () => {
+            const PLAINTEXT = '123456789012345678901234'
+            const result = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Should have exactly 3 chunks
+            expect(result.ciphertext.value.length).toBe(3)
+            expect(result.signature.length).toBe(3)
+        })
     })
 
-    test('decryptString - decrypt the ciphertext of an arbitrary string', () => {
+    describe('decryptString', () => {
+        const PRIVATE_KEY = '0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'
         const USER_KEY = '4b0418c1543dbe70f215175bcddfac42'
-        const CIPHERTEXT = {
-            value: [
-                BigInt('57746566665648186612944522626063785222404096210043977357972234971091066310480'),
-                BigInt('57746566665648186613850323260349401174634559897776223440098911426492276559696')
-            ]
-        }
-        const PLAINTEXT = 'Hello, world!'
+        const CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000001'
+        const FUNCTION_SELECTOR = '0x11223344'
 
-        const plaintext = decryptString(CIPHERTEXT, USER_KEY)
+        test('decrypt the ciphertext of an arbitrary string', () => {
+            const CIPHERTEXT = {
+                value: [
+                    BigInt('57746566665648186612944522626063785222404096210043977357972234971091066310480'),
+                    BigInt('57746566665648186613850323260349401174634559897776223440098911426492276559696')
+                ]
+            }
+            const PLAINTEXT = 'Hello, world!'
 
-        expect(plaintext).toEqual(PLAINTEXT)
+            const plaintext = decryptString(CIPHERTEXT, USER_KEY)
+
+            expect(plaintext).toEqual(PLAINTEXT)
+        })
+
+        test('decryptString with short string (less than 8 bytes)', () => {
+            const PLAINTEXT = 'Hi'
+            const {ciphertext} = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptString(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptString with exactly 8 bytes', () => {
+            const PLAINTEXT = '12345678'
+            const {ciphertext} = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptString(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptString with long string (multiple chunks)', () => {
+            const PLAINTEXT = 'This is a longer string that will be split into multiple 8-byte chunks for encryption.'
+            const {ciphertext} = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptString(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptString with empty string', () => {
+            const PLAINTEXT = ''
+            const {ciphertext} = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptString(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptString with special characters', () => {
+            const PLAINTEXT = 'Hello! @#$%^&*()_+-=[]{}|;:,.<>?/~`'
+            const {ciphertext} = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptString(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptString with unicode characters (basic)', () => {
+            // Using simpler unicode that fits in single bytes per character
+            const PLAINTEXT = 'Hello Café'
+            const {ciphertext} = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptString(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptString with numbers and letters', () => {
+            const PLAINTEXT = 'ABC123xyz789'
+            const {ciphertext} = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptString(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptString round-trip with newlines and tabs', () => {
+            const PLAINTEXT = 'Line 1\nLine 2\tTabbed'
+            const {ciphertext} = buildStringInputText(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptString(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+    })
+
+    describe('prepareIT256', () => {
+        const PRIVATE_KEY = '0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'
+        const USER_KEY = '4b0418c1543dbe70f215175bcddfac42'
+        const CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000001'
+        const FUNCTION_SELECTOR = '0x11223344'
+
+        test('prepareIT256 with value <= 128 bits (should pad high part with zeros)', () => {
+            const PLAINTEXT = (2n ** 100n) - 1n // 100-bit value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(100)
+
+            const result = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Verify structure
+            expect(result).toHaveProperty('ciphertext')
+            expect(result.ciphertext).toHaveProperty('ciphertextHigh')
+            expect(result.ciphertext).toHaveProperty('ciphertextLow')
+            expect(result).toHaveProperty('signature')
+
+            // Verify types
+            expect(typeof result.ciphertext.ciphertextHigh).toBe('bigint')
+            expect(typeof result.ciphertext.ciphertextLow).toBe('bigint')
+            expect(result.signature).toBeInstanceOf(Uint8Array)
+
+            // Verify values are non-zero
+            expect(result.ciphertext.ciphertextHigh).toBeGreaterThan(0n)
+            expect(result.ciphertext.ciphertextLow).toBeGreaterThan(0n)
+            expect(result.signature.length).toBeGreaterThan(0)
+        })
+
+        test('prepareIT256 with 129-bit value (just above 128 bits)', () => {
+            const PLAINTEXT = 2n ** 128n // 129 bits
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(129)
+
+            const result = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Verify structure
+            expect(result.ciphertext).toHaveProperty('ciphertextHigh')
+            expect(result.ciphertext).toHaveProperty('ciphertextLow')
+            expect(result.signature).toBeInstanceOf(Uint8Array)
+
+            // Both parts should be non-zero for values > 128 bits
+            expect(result.ciphertext.ciphertextHigh).toBeGreaterThan(0n)
+            expect(result.ciphertext.ciphertextLow).toBeGreaterThan(0n)
+        })
+
+        test('prepareIT256 with 200-bit value', () => {
+            const PLAINTEXT = (2n ** 200n) - 1n // 200-bit value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(200)
+
+            const result = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            expect(result.ciphertext).toHaveProperty('ciphertextHigh')
+            expect(result.ciphertext).toHaveProperty('ciphertextLow')
+            expect(result.ciphertext.ciphertextHigh).toBeGreaterThan(0n)
+            expect(result.ciphertext.ciphertextLow).toBeGreaterThan(0n)
+            expect(result.signature.length).toBeGreaterThan(0)
+        })
+
+        test('prepareIT256 with 255-bit value (near 256-bit limit)', () => {
+            const PLAINTEXT = (2n ** 255n) - 1n // 255-bit value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(255)
+
+            const result = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            expect(result.ciphertext).toHaveProperty('ciphertextHigh')
+            expect(result.ciphertext).toHaveProperty('ciphertextLow')
+            expect(result.ciphertext.ciphertextHigh).toBeGreaterThan(0n)
+            expect(result.ciphertext.ciphertextLow).toBeGreaterThan(0n)
+        })
+
+        test('prepareIT256 with exactly 256-bit value', () => {
+            const PLAINTEXT = (2n ** 256n) - 1n // Maximum 256-bit value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(256)
+
+            const result = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            expect(result.ciphertext).toHaveProperty('ciphertextHigh')
+            expect(result.ciphertext).toHaveProperty('ciphertextLow')
+            expect(result.ciphertext.ciphertextHigh).toBeGreaterThan(0n)
+            expect(result.ciphertext.ciphertextLow).toBeGreaterThan(0n)
+        })
+
+        test('throw RangeError when plaintext exceeds 256 bits', () => {
+            const PLAINTEXT = 2n ** 256n // 257 bits (exceeds 256-bit limit)
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(257)
+
+            expect(() => prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )).toThrow(RangeError)
+
+            expect(() => prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )).toThrow("Plaintext size must be 256 bits or smaller")
+        })
+
+        test('encrypt and decrypt round-trip with 100-bit value (<= 128 bits)', () => {
+            const PLAINTEXT = (2n ** 100n) - 12345n // 100-bit value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(100)
+
+            // Encrypt using prepareIT256
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Decrypt using decryptUint256
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+
+            // Verify round-trip
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('encrypt and decrypt round-trip with 129-bit value (> 128 bits)', () => {
+            const PLAINTEXT = 2n ** 128n + 12345n // 129-bit value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(129)
+
+            // Encrypt
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Decrypt
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+
+            // Verify round-trip
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('encrypt and decrypt round-trip with 200-bit value', () => {
+            const PLAINTEXT = (2n ** 200n) - 12345n // 200-bit value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(200)
+
+            // Encrypt
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Decrypt
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+
+            // Verify round-trip
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('encrypt and decrypt round-trip with 256-bit value', () => {
+            const PLAINTEXT = (2n ** 256n) - 1n // Maximum 256-bit value
+            const bitSize = PLAINTEXT.toString(2).length
+            expect(bitSize).toBe(256)
+
+            // Encrypt
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Decrypt
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+
+            // Verify round-trip
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('prepareIT256 produces different ciphertexts for different values', () => {
+            const PLAINTEXT1 = 2n ** 150n
+            const PLAINTEXT2 = 2n ** 200n // Use a significantly different value
+
+            const result1 = prepareIT256(
+                PLAINTEXT1,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const result2 = prepareIT256(
+                PLAINTEXT2,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Ciphertexts should be different for different plaintexts
+            // At least one part should be different (both parts might be different)
+            const highDifferent = result1.ciphertext.ciphertextHigh !== result2.ciphertext.ciphertextHigh
+            const lowDifferent = result1.ciphertext.ciphertextLow !== result2.ciphertext.ciphertextLow
+            
+            // At least one part must be different
+            expect(highDifferent || lowDifferent).toBe(true)
+            
+            // The combined ciphertext should be different
+            expect(result1.ciphertext).not.toEqual(result2.ciphertext)
+        })
+
+        test('prepareIT256 produces different signatures for different contract addresses', () => {
+            const PLAINTEXT = 2n ** 200n
+            const CONTRACT_ADDRESS2 = '0x0000000000000000000000000000000000000002'
+
+            const result1 = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const result2 = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS2,
+                FUNCTION_SELECTOR
+            )
+
+            // Signatures should be different for different contract addresses
+            expect(result1.signature).not.toEqual(result2.signature)
+        })
+    })
+
+    describe('decryptUint256', () => {
+        const PRIVATE_KEY = '0x526c9f9fe2fc41fb30fd0dbba1d4d76d774030166ef9f819b361046f5a5b4a34'
+        const USER_KEY = '4b0418c1543dbe70f215175bcddfac42'
+        const CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000001'
+        const FUNCTION_SELECTOR = '0x11223344'
+
+        test('decryptUint256 with value <= 128 bits (padded high part)', () => {
+            const PLAINTEXT = (2n ** 100n) - 1n // 100-bit value
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint256 with 129-bit value', () => {
+            const PLAINTEXT = 2n ** 128n + 1000n // 129-bit value
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint256 with 150-bit value', () => {
+            const PLAINTEXT = (2n ** 150n) - 1n
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint256 with 200-bit value', () => {
+            const PLAINTEXT = (2n ** 200n) - 1n
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint256 with 255-bit value', () => {
+            const PLAINTEXT = (2n ** 255n) - 1n
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint256 with exactly 256-bit value', () => {
+            const PLAINTEXT = (2n ** 256n) - 1n
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint256 with zero value', () => {
+            const PLAINTEXT = 0n
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint256 with small value (1)', () => {
+            const PLAINTEXT = 1n
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint256 with large random value', () => {
+            const PLAINTEXT = 123456789012345678901234567890123456789012345678901234567890n
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
+
+        test('decryptUint256 verifies ciphertext structure', () => {
+            const PLAINTEXT = 2n ** 200n
+            const {ciphertext} = prepareIT256(
+                PLAINTEXT,
+                { wallet: new Wallet(PRIVATE_KEY), userKey: USER_KEY },
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR
+            )
+
+            // Verify ciphertext has required structure
+            expect(ciphertext).toHaveProperty('ciphertextHigh')
+            expect(ciphertext).toHaveProperty('ciphertextLow')
+            expect(typeof ciphertext.ciphertextHigh).toBe('bigint')
+            expect(typeof ciphertext.ciphertextLow).toBe('bigint')
+            expect(ciphertext.ciphertextHigh).toBeGreaterThan(0n)
+            expect(ciphertext.ciphertextLow).toBeGreaterThan(0n)
+
+            // Verify decryption works
+            const decrypted = decryptUint256(ciphertext, USER_KEY)
+            expect(decrypted).toEqual(PLAINTEXT)
+        })
     })
 })
