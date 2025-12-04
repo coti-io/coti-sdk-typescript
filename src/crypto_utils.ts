@@ -36,61 +36,63 @@ export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: U
     }
 }
 
-export function decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array, r2: Uint8Array | null = null, ciphertext2: Uint8Array | null = null): Uint8Array {
+// Helper function to validate input sizes
+function validateDecryptInputs(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array): void {
     if (ciphertext.length !== BLOCK_SIZE) {
         throw new RangeError("Ciphertext size must be 128 bits.")
     }
 
-    // Ensure key size is 128 bits (16 bytes)
     if (key.length !== BLOCK_SIZE) {
         throw new RangeError("Key size must be 128 bits.")
     }
 
-    // Ensure random size is 128 bits (16 bytes)
-    if (r.length != BLOCK_SIZE) {
+    if (r.length !== BLOCK_SIZE) {
         throw new RangeError("Random size must be 128 bits.")
     }
+}
 
-    if (r2 !== null) {
-        if (r2.length !== BLOCK_SIZE) {
-            throw new RangeError("Random2 size must be 128 bits, received " + r2.length + " bytes.")
-        }
-        if (ciphertext2 === null) {
-            throw new RangeError("Ciphertext2 is required.")
-        }
+// Helper function to validate second block parameters
+function validateSecondBlock(r2: Uint8Array | null, ciphertext2: Uint8Array | null): void {
+    if (r2 !== null && r2.length !== BLOCK_SIZE) {
+        throw new RangeError("Random2 size must be 128 bits, received " + r2.length + " bytes.")
+    }
+    
+    if (ciphertext2 !== null && ciphertext2.length !== BLOCK_SIZE) {
+        throw new RangeError("Ciphertext2 size must be 128 bits, received " + ciphertext2.length + " bytes.")
     }
 
-    if (ciphertext2 !== null) {
-        if (ciphertext2.length !== BLOCK_SIZE) {
-            throw new RangeError("Ciphertext2 size must be 128 bits, received " + ciphertext2.length + " bytes.")
-        }
-
-        if (r2 === null) {
-            throw new RangeError("Random2 is required.")
-        }
+    if (r2 !== null && ciphertext2 === null) {
+        throw new RangeError("Ciphertext2 is required.")
     }
 
-    // Get the encrypted random value 'r'
+    if (ciphertext2 !== null && r2 === null) {
+        throw new RangeError("Random2 is required.")
+    }
+}
+
+// Helper function to decrypt a single block
+function decryptBlock(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array): Uint8Array {
     const encryptedR = encryptNumber(r, key)
+    const plaintext = new Uint8Array(BLOCK_SIZE)
 
-    // XOR the encrypted random value 'r' with the ciphertext to obtain the plaintext
-    let plaintext = new Uint8Array(BLOCK_SIZE)
-
-    for (let i = 0; i < encryptedR.length; i++) {
+    for (let i = 0; i < BLOCK_SIZE; i++) {
         plaintext[i] = encryptedR[i] ^ ciphertext[i]
     }
 
+    return plaintext
+}
+
+// Refactored decrypt function with reduced complexity
+export function decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array, r2: Uint8Array | null = null, ciphertext2: Uint8Array | null = null): Uint8Array {
+    validateDecryptInputs(key, r, ciphertext)
+    validateSecondBlock(r2, ciphertext2)
+
+    const plaintext = decryptBlock(key, r, ciphertext)
+
+    // Handle second block if provided
     if (r2 !== null && ciphertext2 !== null) {
-        // Encrypt the random value 'r2' using AES in ECB mode
-        const encryptedR2 = encryptNumber(r2, key)
-
-        // XOR the encrypted random value 'r2' with the ciphertext2 to obtain the plaintext2
-        const plaintext2 = new Uint8Array(BLOCK_SIZE)
-        for (let i = 0; i < encryptedR2.length; i++) {
-            plaintext2[i] = encryptedR2[i] ^ ciphertext2[i]
-        }
-
-        plaintext = new Uint8Array([...plaintext, ...plaintext2])
+        const plaintext2 = decryptBlock(key, r2, ciphertext2)
+        return new Uint8Array([...plaintext, ...plaintext2])
     }
 
     return plaintext
@@ -334,9 +336,10 @@ export function decryptString(ciphertext: ctString, userKey: string): string {
 
     const decoder = new TextDecoder()
 
+    // Use replaceAll instead of replace with regex
     return decoder
         .decode(encodedStr)
-        .replace(/\0/g, '')
+        .replaceAll('\0', '')
 }
 
 export function generateRandomAesKeySizeNumber(): string {
@@ -344,14 +347,15 @@ export function generateRandomAesKeySizeNumber(): string {
 }
 
 export function encodeString(str: string): Uint8Array {
-    return new Uint8Array([...str.split('').map((char) => parseInt(char.codePointAt(0)?.toString(HEX_BASE)!, HEX_BASE))])
+    // Use iterable directly without converting to array first
+    return new Uint8Array(Array.from(str, (char) => Number.parseInt(char.codePointAt(0)?.toString(HEX_BASE)!, HEX_BASE)))
 }
 
 export function encodeKey(userKey: string): Uint8Array {
     const keyBytes = new Uint8Array(16)
 
     for (let i = 0; i < 32; i += 2) {
-        keyBytes[i / 2] = parseInt(userKey.slice(i, i + 2), HEX_BASE)
+        keyBytes[i / 2] = Number.parseInt(userKey.slice(i, i + 2), HEX_BASE)
     }
 
     return keyBytes
@@ -460,6 +464,29 @@ export function prepareIT(
     }
 }
 
+// Helper function to create ciphertext for 128-bit plaintext
+function createCiphertext128(plaintextBigInt: bigint, userAesKey: Uint8Array): Uint8Array {
+    const plaintextBytes = new Uint8Array(BLOCK_SIZE)
+    writeBigUInt128BE(plaintextBytes, plaintextBigInt)
+    const { ciphertext, r } = encrypt(userAesKey, plaintextBytes)
+
+    const zero = BigInt(0)
+    const zeroBytes = new Uint8Array(BLOCK_SIZE)
+    writeBigUInt128BE(zeroBytes, zero)
+    const { ciphertext: ciphertextHigh, r: rHigh } = encrypt(userAesKey, zeroBytes)
+
+    return new Uint8Array([...ciphertextHigh, ...rHigh, ...ciphertext, ...r])
+}
+
+// Helper function to create ciphertext for 256-bit plaintext
+function createCiphertext256(plaintextBigInt: bigint, userAesKey: Uint8Array): Uint8Array {
+    const plaintextBytes = new Uint8Array(CT_SIZE)
+    writeBigUInt256BE(plaintextBytes, plaintextBigInt)
+    const high = encrypt(userAesKey, plaintextBytes.slice(0, BLOCK_SIZE))
+    const low = encrypt(userAesKey, plaintextBytes.slice(BLOCK_SIZE))
+    return new Uint8Array([...high.ciphertext, ...high.r, ...low.ciphertext, ...low.r])
+}
+
 /**
  * Prepares a 256-bit IT by encrypting both parts of the plaintext, signing the encrypted message,
  * and packaging the resulting data for smart contract submission.
@@ -482,27 +509,10 @@ export function prepareIT256(
     const hashFuncBytes = getBytes(functionSelector)
     const signingKeyBytes = getBytes(sender.wallet.privateKey)
 
-    let ct = new Uint8Array(0)
-
-    if (bitSize <= MAX_PLAINTEXT_BIT_SIZE / 2) {
-        const plaintextBytes = new Uint8Array(BLOCK_SIZE)
-        writeBigUInt128BE(plaintextBytes, plaintextBigInt)
-        const { ciphertext, r } = encrypt(userAesKey, plaintextBytes)
-
-        const zero = BigInt(0)
-        const zeroBytes = new Uint8Array(BLOCK_SIZE)
-        writeBigUInt128BE(zeroBytes, zero)
-        const { ciphertext: ciphertextHigh, r: rHigh } = encrypt(userAesKey, zeroBytes)
-
-        ct = new Uint8Array([...ciphertextHigh, ...rHigh, ...ciphertext, ...r])
-    } else {
-        const plaintextBytes = new Uint8Array(CT_SIZE)
-        writeBigUInt256BE(plaintextBytes, plaintextBigInt)
-        const high = encrypt(userAesKey, plaintextBytes.slice(0, BLOCK_SIZE))
-        const low = encrypt(userAesKey, plaintextBytes.slice(BLOCK_SIZE))
-        ct = new Uint8Array([...high.ciphertext, ...high.r, ...low.ciphertext, ...low.r])
-    }
-
+    // Choose appropriate encryption based on bit size
+    const ct = bitSize <= MAX_PLAINTEXT_BIT_SIZE / 2
+        ? createCiphertext128(plaintextBigInt, userAesKey)
+        : createCiphertext256(plaintextBigInt, userAesKey)
 
     const signature = signIT(senderBytes, contractBytes, hashFuncBytes, ct, signingKeyBytes)
     const ciphertextHigh = ct.slice(0, CT_SIZE)
