@@ -3,3 +3,6 @@ dist
 .idea
 coverage
 .env
+test-results.xml
+*.xml
+test-report
