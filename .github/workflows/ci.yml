@@ -51,7 +51,7 @@ jobs:
         with:
           files: test-results.xml
           check_name: Test Results (Node ${{ matrix.node-version }})
-          comment_mode: create new
+          comment_mode: always
           report_individual_runs: true
 
   build:
