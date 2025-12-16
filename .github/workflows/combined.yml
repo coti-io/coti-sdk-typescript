@@ -46,6 +46,7 @@ jobs:
           path: |
             test-results.xml
             test-report/
+            coverage/coverage-summary.json
           retention-days: 30
       
       - name: Publish test results
@@ -56,6 +57,88 @@ jobs:
           check_name: Test Results (Node ${{ matrix.node-version }})
           comment_mode: always
           report_individual_runs: true
+
+  coverage-summary:
+    name: Test Coverage Summary
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    
+    steps:
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+          path: coverage-artifacts
+      
+      - name: Display test coverage
+        run: |
+          echo "## Test Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Function to display coverage table
+          display_coverage() {
+            local COVERAGE_FILE=$1
+            local NODE_VERSION=$2
+            
+            if [ -f "$COVERAGE_FILE" ]; then
+              echo "### Node.js $NODE_VERSION" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "File             | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s" >> $GITHUB_STEP_SUMMARY
+              echo "-----------------|---------|----------|---------|---------|-------------------" >> $GITHUB_STEP_SUMMARY
+              
+              node -e "
+                const fs = require('fs');
+                const path = require('path');
+                const data = JSON.parse(fs.readFileSync('$COVERAGE_FILE', 'utf8'));
+                const files = Object.keys(data).filter(k => k !== 'total').sort();
+                const total = data.total;
+                console.log(\`All files        | \${String(total.statements.pct).padStart(6)} | \${String(total.branches.pct).padStart(8)} | \${String(total.functions.pct).padStart(7)} | \${String(total.lines.pct).padStart(7)} |\`);
+                files.forEach(file => {
+                  const fileName = path.basename(file);
+                  const fileData = data[file];
+                  const uncovered = fileData.lines.notCovered && Array.isArray(fileData.lines.notCovered) && fileData.lines.notCovered.length > 0 ? fileData.lines.notCovered.join(',') : '';
+                  console.log(\` \${fileName.padEnd(15)} | \${String(fileData.statements.pct).padStart(6)} | \${String(fileData.branches.pct).padStart(8)} | \${String(fileData.functions.pct).padStart(7)} | \${String(fileData.lines.pct).padStart(7)} | \${uncovered}\`);
+                });
+              " >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          }
+          
+          # Find and display coverage for both Node versions
+          # Check in artifact subdirectories and also by path matching
+          COVERAGE_20=$(find coverage-artifacts -name "coverage-summary.json" | grep -E "(20\.x|test-results-20)" | head -1)
+          COVERAGE_18=$(find coverage-artifacts -name "coverage-summary.json" | grep -E "(18\.x|test-results-18)" | head -1)
+          
+          # Also try direct paths in case artifacts are in subdirectories
+          if [ -z "$COVERAGE_20" ] && [ -d "coverage-artifacts/test-results-20.x" ]; then
+            COVERAGE_20=$(find coverage-artifacts/test-results-20.x -name "coverage-summary.json" | head -1)
+          fi
+          
+          if [ -z "$COVERAGE_18" ] && [ -d "coverage-artifacts/test-results-18.x" ]; then
+            COVERAGE_18=$(find coverage-artifacts/test-results-18.x -name "coverage-summary.json" | head -1)
+          fi
+          
+          if [ -n "$COVERAGE_20" ]; then
+            display_coverage "$COVERAGE_20" "20.x"
+          fi
+          
+          if [ -n "$COVERAGE_18" ]; then
+            display_coverage "$COVERAGE_18" "18.x"
+          fi
+          
+          # Fallback if no version-specific files found
+          if [ -z "$COVERAGE_20" ] && [ -z "$COVERAGE_18" ]; then
+            COVERAGE_FILE=$(find coverage-artifacts -name "coverage-summary.json" | head -1)
+            if [ -f "$COVERAGE_FILE" ]; then
+              display_coverage "$COVERAGE_FILE" "Unknown"
+            else
+              echo "Coverage data not found" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
 
   build:
     name: Build

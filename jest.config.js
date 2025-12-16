@@ -5,7 +5,7 @@ module.exports = {
     moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
     setupFiles: ['<rootDir>/tests/setup.ts'],
     collectCoverage: true,
-    coverageReporters: ['text'],
+    coverageReporters: ['text', 'json-summary'],
     coveragePathIgnorePatterns: [
         '/node_modules/',
         '/dist/',
