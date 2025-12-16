@@ -50,7 +50,7 @@ jobs:
       
       - name: Publish test results
         if: always()
-        uses: EnricoMi/publish-unit-test-result-action@v2
+        uses: EnricoMi/publish-unit-test-result-action@34d7c956a59aed1bfebf31df77b8de55db9bbaaf
         with:
           files: test-results.xml
           check_name: Test Results (Node ${{ matrix.node-version }})
