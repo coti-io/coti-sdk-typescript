@@ -59,7 +59,7 @@ jobs:
           report_individual_runs: true
 
   coverage-summary:
-    name: Test Coverage Summary
+    name: Test Coverage
     runs-on: ubuntu-latest
     needs: test
     if: always()
@@ -76,6 +76,24 @@ jobs:
         run: |
           echo "## Test Coverage Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Debug: Show what we're working with
+          echo "=== DEBUG INFO ==="
+          echo "Current directory: $(pwd)"
+          echo ""
+          echo "Directory structure:"
+          ls -la coverage-artifacts/ 2>/dev/null || echo "coverage-artifacts directory not found"
+          echo ""
+          echo "All files in coverage-artifacts:"
+          find coverage-artifacts -type f 2>/dev/null | head -20 || echo "No files found"
+          echo ""
+          echo "All directories in coverage-artifacts:"
+          find coverage-artifacts -type d 2>/dev/null || echo "No directories found"
+          echo ""
+          echo "All coverage-summary.json files:"
+          find coverage-artifacts -name "coverage-summary.json" -type f 2>/dev/null || echo "No coverage-summary.json files found"
+          echo "=================="
+          echo ""
           
           # Function to display coverage table
           display_coverage() {
@@ -108,31 +126,67 @@ jobs:
             fi
           }
           
-          # Find and display coverage for both Node versions
-          # Check in artifact subdirectories and also by path matching
-          COVERAGE_20=$(find coverage-artifacts -name "coverage-summary.json" | grep -E "(20\.x|test-results-20)" | head -1)
-          COVERAGE_18=$(find coverage-artifacts -name "coverage-summary.json" | grep -E "(18\.x|test-results-18)" | head -1)
+          # Find coverage files - check in subdirectories first (artifact names)
+          COVERAGE_20=""
+          COVERAGE_18=""
           
-          # Also try direct paths in case artifacts are in subdirectories
-          if [ -z "$COVERAGE_20" ] && [ -d "coverage-artifacts/test-results-20.x" ]; then
-            COVERAGE_20=$(find coverage-artifacts/test-results-20.x -name "coverage-summary.json" | head -1)
+          echo "Searching for Node 20.x coverage..."
+          if [ -d "coverage-artifacts/test-results-20.x" ]; then
+            echo "Found directory: coverage-artifacts/test-results-20.x"
+            COVERAGE_20=$(find coverage-artifacts/test-results-20.x -name "coverage-summary.json" -type f | head -1)
+            echo "Result: $COVERAGE_20"
+          else
+            echo "Directory not found: coverage-artifacts/test-results-20.x"
           fi
           
-          if [ -z "$COVERAGE_18" ] && [ -d "coverage-artifacts/test-results-18.x" ]; then
-            COVERAGE_18=$(find coverage-artifacts/test-results-18.x -name "coverage-summary.json" | head -1)
+          echo "Searching for Node 18.x coverage..."
+          if [ -d "coverage-artifacts/test-results-18.x" ]; then
+            echo "Found directory: coverage-artifacts/test-results-18.x"
+            COVERAGE_18=$(find coverage-artifacts/test-results-18.x -name "coverage-summary.json" -type f | head -1)
+            echo "Result: $COVERAGE_18"
+          else
+            echo "Directory not found: coverage-artifacts/test-results-18.x"
           fi
           
-          if [ -n "$COVERAGE_20" ]; then
+          # If not found in subdirectories, search all files and match by path
+          if [ -z "$COVERAGE_20" ]; then
+            echo "Trying alternative search for 20.x..."
+            COVERAGE_20=$(find coverage-artifacts -name "coverage-summary.json" -type f | grep -i "20" | head -1)
+            echo "Alternative result: $COVERAGE_20"
+          fi
+          
+          if [ -z "$COVERAGE_18" ]; then
+            echo "Trying alternative search for 18.x..."
+            COVERAGE_18=$(find coverage-artifacts -name "coverage-summary.json" -type f | grep -i "18" | head -1)
+            echo "Alternative result: $COVERAGE_18"
+          fi
+          
+          echo ""
+          echo "Final results:"
+          echo "COVERAGE_20: $COVERAGE_20"
+          echo "COVERAGE_18: $COVERAGE_18"
+          echo ""
+          
+          # Display coverage for found versions
+          if [ -n "$COVERAGE_20" ] && [ -f "$COVERAGE_20" ]; then
+            echo "Displaying Node 20.x coverage..."
             display_coverage "$COVERAGE_20" "20.x"
+          else
+            echo "Node 20.x coverage file not found or not readable"
           fi
           
-          if [ -n "$COVERAGE_18" ]; then
+          if [ -n "$COVERAGE_18" ] && [ -f "$COVERAGE_18" ]; then
+            echo "Displaying Node 18.x coverage..."
             display_coverage "$COVERAGE_18" "18.x"
+          else
+            echo "Node 18.x coverage file not found or not readable"
           fi
           
           # Fallback if no version-specific files found
           if [ -z "$COVERAGE_20" ] && [ -z "$COVERAGE_18" ]; then
-            COVERAGE_FILE=$(find coverage-artifacts -name "coverage-summary.json" | head -1)
+            echo "No version-specific files found, trying fallback..."
+            COVERAGE_FILE=$(find coverage-artifacts -name "coverage-summary.json" -type f | head -1)
+            echo "Fallback file: $COVERAGE_FILE"
             if [ -f "$COVERAGE_FILE" ]; then
               display_coverage "$COVERAGE_FILE" "Unknown"
             else
