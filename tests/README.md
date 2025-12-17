@@ -1,8 +1,17 @@
 # Test Report
 
-**Generated:** 2025-12-17T09:53:32.031Z
+**Generated:** 2025-12-17T12:20:22.620Z
 
 ---
+
+## Coverage Summary
+
+| File | Statements | Branches | Functions | Lines |
+| ---- | ---------- | -------- | --------- | ----- |
+| **All files** | 100% | 100% | 100% | 100% |
+| crypto_utils.ts | 100% | 100% | 100% | 100% |
+| index.ts | 100% | 100% | 100% | 100% |
+
 
 ## Test Results Summary
 
@@ -12,7 +21,7 @@
 | Passed       | 214 |
 | Failed       | 0 |
 | Errors       | 0 |
-| Duration     | 11.93s |
+| Duration     | 13.86s |
 
 ---
 
@@ -23,7 +32,7 @@
 - **Tests:** 37
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 4.406s
+- **Time:** 5.247s
 
 - ✅ prepareIT produces incorrect result with user key that is too short
 - ✅ prepareIT produces incorrect result with user key that is too long
@@ -70,7 +79,7 @@
 - **Tests:** 29
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.446s
+- **Time:** 0.529s
 
 - ✅ throws RangeError when plaintext exceeds 16 bytes
 - ✅ throws RangeError when key length is not 16 bytes
@@ -109,7 +118,7 @@
 - **Tests:** 14
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.324s
+- **Time:** 0.404s
 
 - ✅ prepareIT output can be decrypted by decryptUint
 - ✅ buildInputText output can be decrypted by decryptUint
@@ -128,37 +137,12 @@
 
 ---
 
-### tests/integration/e2e.flow.test.ts
-
-- **Tests:** 15
-- **Failures:** 0
-- **Errors:** 0
-- **Time:** 0.315s
-
-- ✅ complete flow: encrypt and decrypt small value
-- ✅ complete flow: encrypt and decrypt large value
-- ✅ complete flow: encrypt and decrypt zero
-- ✅ different plaintexts produce different ciphertexts
-- ✅ complete flow: encrypt and decrypt 128-bit value
-- ✅ complete flow: encrypt and decrypt 256-bit value
-- ✅ complete flow: encrypt and decrypt value > 128 bits
-- ✅ different plaintexts produce different ciphertexts
-- ✅ complete flow: encrypt and decrypt short string
-- ✅ complete flow: encrypt and decrypt long string
-- ✅ complete flow: encrypt and decrypt empty string
-- ✅ complete flow: encrypt and decrypt string with special characters
-- ✅ different strings produce different ciphertexts
-- ✅ sequence: prepareIT → prepareIT256 → buildStringInputText
-- ✅ sequence: multiple prepareIT operations with different values
-
----
-
 ### tests/unit/crypto_utils.test.ts
 
 - **Tests:** 92
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 5.863s
+- **Time:** 6.534s
 
 - ✅ encodeString - basic encoding of a string as a Uint8Array
 - ✅ encodeKey - basic encoding of an AES key as a Uint8Array
@@ -255,12 +239,37 @@
 
 ---
 
+### tests/integration/e2e.flow.test.ts
+
+- **Tests:** 15
+- **Failures:** 0
+- **Errors:** 0
+- **Time:** 0.406s
+
+- ✅ complete flow: encrypt and decrypt small value
+- ✅ complete flow: encrypt and decrypt large value
+- ✅ complete flow: encrypt and decrypt zero
+- ✅ different plaintexts produce different ciphertexts
+- ✅ complete flow: encrypt and decrypt 128-bit value
+- ✅ complete flow: encrypt and decrypt 256-bit value
+- ✅ complete flow: encrypt and decrypt value > 128 bits
+- ✅ different plaintexts produce different ciphertexts
+- ✅ complete flow: encrypt and decrypt short string
+- ✅ complete flow: encrypt and decrypt long string
+- ✅ complete flow: encrypt and decrypt empty string
+- ✅ complete flow: encrypt and decrypt string with special characters
+- ✅ different strings produce different ciphertexts
+- ✅ sequence: prepareIT → prepareIT256 → buildStringInputText
+- ✅ sequence: multiple prepareIT operations with different values
+
+---
+
 ### tests/integration/format.compatibility.test.ts
 
 - **Tests:** 15
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.312s
+- **Time:** 0.386s
 
 - ✅ output matches itUint type structure
 - ✅ ciphertext is valid BigInt for contract submission
@@ -285,7 +294,7 @@
 - **Tests:** 12
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.267s
+- **Time:** 0.355s
 
 - ✅ signature has correct format (65 bytes: r + s + v)
 - ✅ signature changes when plaintext changes
@@ -301,13 +310,4 @@
 - ✅ signature format is consistent (same structure)
 
 ---
-
-
-## Coverage Summary
-
-| File | Statements | Branches | Functions | Lines |
-| ---- | ---------- | -------- | --------- | ----- |
-| **All files** | 100% | 100% | 100% | 100% |
-| crypto_utils.ts | 100% | 100% | 100% | 100% |
-| index.ts | 100% | 100% | 100% | 100% |
 
