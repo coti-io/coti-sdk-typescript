@@ -1,6 +1,6 @@
 # Test Report
 
-**Generated:** 2025-12-17T09:33:07.883Z
+**Generated:** 2025-12-17T09:53:32.031Z
 
 ---
 
@@ -12,7 +12,7 @@
 | Passed       | 214 |
 | Failed       | 0 |
 | Errors       | 0 |
-| Duration     | 13.53s |
+| Duration     | 11.93s |
 
 ---
 
@@ -23,7 +23,7 @@
 - **Tests:** 37
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 5.126s
+- **Time:** 4.406s
 
 - ✅ prepareIT produces incorrect result with user key that is too short
 - ✅ prepareIT produces incorrect result with user key that is too long
@@ -70,7 +70,7 @@
 - **Tests:** 29
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.406s
+- **Time:** 0.446s
 
 - ✅ throws RangeError when plaintext exceeds 16 bytes
 - ✅ throws RangeError when key length is not 16 bytes
@@ -109,7 +109,7 @@
 - **Tests:** 14
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.312s
+- **Time:** 0.324s
 
 - ✅ prepareIT output can be decrypted by decryptUint
 - ✅ buildInputText output can be decrypted by decryptUint
@@ -133,7 +133,7 @@
 - **Tests:** 15
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.301s
+- **Time:** 0.315s
 
 - ✅ complete flow: encrypt and decrypt small value
 - ✅ complete flow: encrypt and decrypt large value
@@ -153,37 +153,12 @@
 
 ---
 
-### tests/integration/format.compatibility.test.ts
-
-- **Tests:** 15
-- **Failures:** 0
-- **Errors:** 0
-- **Time:** 0.288s
-
-- ✅ output matches itUint type structure
-- ✅ ciphertext is valid BigInt for contract submission
-- ✅ signature can be converted to bytes format for contracts
-- ✅ output matches itUint256 type structure
-- ✅ ciphertextHigh and ciphertextLow are valid BigInts
-- ✅ format is compatible with contract struct parameters
-- ✅ output matches itString type structure
-- ✅ ciphertext.value is array of BigInts for contract submission
-- ✅ signature array matches ciphertext array length
-- ✅ format is compatible with contract array parameters
-- ✅ contract address format is valid
-- ✅ function selector format is valid (4 bytes)
-- ✅ ciphertext can be converted to hex string
-- ✅ signature can be converted to hex string
-- ✅ ciphertextHigh and ciphertextLow can be converted to hex strings
-
----
-
 ### tests/unit/crypto_utils.test.ts
 
 - **Tests:** 92
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 6.811s
+- **Time:** 5.863s
 
 - ✅ encodeString - basic encoding of a string as a Uint8Array
 - ✅ encodeKey - basic encoding of an AES key as a Uint8Array
@@ -280,12 +255,37 @@
 
 ---
 
+### tests/integration/format.compatibility.test.ts
+
+- **Tests:** 15
+- **Failures:** 0
+- **Errors:** 0
+- **Time:** 0.312s
+
+- ✅ output matches itUint type structure
+- ✅ ciphertext is valid BigInt for contract submission
+- ✅ signature can be converted to bytes format for contracts
+- ✅ output matches itUint256 type structure
+- ✅ ciphertextHigh and ciphertextLow are valid BigInts
+- ✅ format is compatible with contract struct parameters
+- ✅ output matches itString type structure
+- ✅ ciphertext.value is array of BigInts for contract submission
+- ✅ signature array matches ciphertext array length
+- ✅ format is compatible with contract array parameters
+- ✅ contract address format is valid
+- ✅ function selector format is valid (4 bytes)
+- ✅ ciphertext can be converted to hex string
+- ✅ signature can be converted to hex string
+- ✅ ciphertextHigh and ciphertextLow can be converted to hex strings
+
+---
+
 ### tests/integration/signature.verification.test.ts
 
 - **Tests:** 12
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.288s
+- **Time:** 0.267s
 
 - ✅ signature has correct format (65 bytes: r + s + v)
 - ✅ signature changes when plaintext changes
