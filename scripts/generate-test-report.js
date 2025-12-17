@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const { parseString } = require('xml2js');
 
 function safeReadJSON(filePath) {
@@ -39,10 +39,10 @@ function generateTestSummaryFromJUnit(xmlPath, cb) {
 
     suites.forEach((suite) => {
       const attrs = suite.$ || {};
-      const tests = parseInt(attrs.tests || 0, 10);
-      const failures = parseInt(attrs.failures || 0, 10);
-      const errors = parseInt(attrs.errors || 0, 10);
-      const time = parseFloat(attrs.time || 0);
+      const tests = Number.parseInt(attrs.tests || 0, 10);
+      const failures = Number.parseInt(attrs.failures || 0, 10);
+      const errors = Number.parseInt(attrs.errors || 0, 10);
+      const time = Number.parseFloat(attrs.time || 0);
 
       summary.totalTests += tests;
       summary.totalFailures += failures;
@@ -56,7 +56,7 @@ function generateTestSummaryFromJUnit(xmlPath, cb) {
         const failureMessage = hasFailure ? (tc.failure[0]._ || tc.failure[0].$.message || '').toString().trim() : '';
         return {
           name: tca.name || 'Unnamed test',
-          time: parseFloat(tca.time || 0),
+          time: Number.parseFloat(tca.time || 0),
           failed: hasFailure,
           failureMessage
         };
@@ -181,9 +181,9 @@ function generateMarkdownReport() {
     md += `**Generated:** ${new Date().toISOString()}\n\n`;
     md += '---\n\n';
 
-    md += formatTestSummaryMarkdown(testSummary);
-    md += '\n';
     md += formatCoverageMarkdown(coverage);
+    md += '\n';
+    md += formatTestSummaryMarkdown(testSummary);
 
     fs.writeFileSync(outputPath, md, 'utf8');
     console.log(`Markdown test report written to ${outputPath}`);
