@@ -1,0 +1,289 @@
+name: Combined CI/CD and Publish Pipeline
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main, development ]
+  workflow_dispatch:
+  release:
+    types: [ created ]
+
+permissions:
+  contents: write
+  checks: write
+  pull-requests: write
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    env:
+      TEST_PRIVATE_KEY: ${{ secrets.TEST_PRIVATE_KEY }}
+      TEST_USER_KEY: ${{ secrets.TEST_USER_KEY }}
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests with coverage
+        run: npm run test:ci
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.node-version }}
+          path: |
+            test-results.xml
+            test-report/
+            coverage/coverage-summary.json
+          retention-days: 30
+      
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@34d7c956a59aed1bfebf31df77b8de55db9bbaaf
+        with:
+          files: test-results.xml
+          check_name: Test Results (Node ${{ matrix.node-version }})
+          comment_mode: always
+          report_individual_runs: true
+
+  coverage-summary:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    
+    steps:
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          merge-multiple: false
+          path: coverage-artifacts
+      
+      - name: Display test coverage
+        run: |
+          echo "## Test Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Function to display coverage table
+          display_coverage() {
+            local COVERAGE_FILE=$1
+            local NODE_VERSION=$2
+            
+            if [ -f "$COVERAGE_FILE" ]; then
+              echo "### Node.js $NODE_VERSION" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "File             | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s" >> $GITHUB_STEP_SUMMARY
+              echo "-----------------|---------|----------|---------|---------|-------------------" >> $GITHUB_STEP_SUMMARY
+              
+              node -e "
+                const fs = require('fs');
+                const path = require('path');
+                const data = JSON.parse(fs.readFileSync('$COVERAGE_FILE', 'utf8'));
+                const files = Object.keys(data).filter(k => k !== 'total').sort();
+                const total = data.total;
+                console.log(\`All files        | \${String(total.statements.pct).padStart(6)} | \${String(total.branches.pct).padStart(8)} | \${String(total.functions.pct).padStart(7)} | \${String(total.lines.pct).padStart(7)} |\`);
+                files.forEach(file => {
+                  const fileName = path.basename(file);
+                  const fileData = data[file];
+                  const uncovered = fileData.lines.notCovered && Array.isArray(fileData.lines.notCovered) && fileData.lines.notCovered.length > 0 ? fileData.lines.notCovered.join(',') : '';
+                  console.log(\` \${fileName.padEnd(15)} | \${String(fileData.statements.pct).padStart(6)} | \${String(fileData.branches.pct).padStart(8)} | \${String(fileData.functions.pct).padStart(7)} | \${String(fileData.lines.pct).padStart(7)} | \${uncovered}\`);
+                });
+              " >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          }
+          
+          # Find coverage files in separate artifact directories
+          COVERAGE_20=""
+          COVERAGE_18=""
+          
+          # Check for 20.x artifact directory
+          if [ -d "coverage-artifacts/test-results-20.x" ]; then
+            COVERAGE_20=$(find coverage-artifacts/test-results-20.x -name "coverage-summary.json" -type f | head -1)
+          fi
+          
+          # Check for 18.x artifact directory
+          if [ -d "coverage-artifacts/test-results-18.x" ]; then
+            COVERAGE_18=$(find coverage-artifacts/test-results-18.x -name "coverage-summary.json" -type f | head -1)
+          fi
+          
+          # Display coverage for found versions
+          if [ -n "$COVERAGE_20" ] && [ -f "$COVERAGE_20" ]; then
+            display_coverage "$COVERAGE_20" "20.x"
+          fi
+          
+          if [ -n "$COVERAGE_18" ] && [ -f "$COVERAGE_18" ]; then
+            display_coverage "$COVERAGE_18" "18.x"
+          fi
+
+          # Fallback if no version-specific files found
+          if [ -z "$COVERAGE_20" ] && [ -z "$COVERAGE_18" ]; then
+            COVERAGE_FILE=$(find coverage-artifacts -name "coverage-summary.json" -type f | head -1)
+            if [ -f "$COVERAGE_FILE" ]; then
+              display_coverage "$COVERAGE_FILE" "Unknown"
+            else
+              echo "Coverage data not found" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+  generate-markdown-report:
+    name: Generate Markdown Test Report
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          merge-multiple: false
+          path: test-artifacts
+
+      - name: Prepare test data for report
+        run: |
+          # Prefer 20.x artifacts if available
+          if [ -d "test-artifacts/test-results-20.x" ]; then
+            ARTIFACT_DIR="test-artifacts/test-results-20.x"
+          elif [ -d "test-artifacts/test-results-18.x" ]; then
+            ARTIFACT_DIR="test-artifacts/test-results-18.x"
+          else
+            # Fallback: first directory inside test-artifacts
+            ARTIFACT_DIR=$(find test-artifacts -maxdepth 1 -type d ! -path "test-artifacts" | head -1 || echo "")
+          fi
+
+          echo "Using artifact directory: $ARTIFACT_DIR"
+
+          if [ -n "$ARTIFACT_DIR" ] && [ -d "$ARTIFACT_DIR" ]; then
+            if [ -f "$ARTIFACT_DIR/test-results.xml" ]; then
+              cp "$ARTIFACT_DIR/test-results.xml" test-results.xml
+            fi
+
+            if [ -d "$ARTIFACT_DIR/coverage" ]; then
+              rm -rf coverage
+              cp -R "$ARTIFACT_DIR/coverage" coverage
+            fi
+          else
+            echo "No suitable artifact directory found for test report generation."
+          fi
+
+      - name: Generate Markdown test report
+        run: npm run test:report
+
+      - name: Commit and push Markdown report
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add tests/README.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit for tests/README.md"
+            exit 0
+          fi
+          git commit -m "Update tests/README.md [skip ci]"
+          git push
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build
+        run: npm run build
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  update-version-and-publish:
+    name: Update Version and Publish to NPM
+    needs: test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Update package.json version
+        run: |
+          TAG_NAME=$(echo ${{github.ref_name}})          
+          jq --arg tag "$TAG_NAME" '.version = $tag' package.json > tmp.$$.json && mv tmp.$$.json package.json
+      
+      - name: Commit and push changes
+        run: |
+          TAG_NAME=$(echo ${{github.ref_name}})
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add package.json
+          git add package-lock.json
+          git commit -m "Update package.json version to $TAG_NAME"
+          git tag -f $TAG_NAME
+          git push --force origin $TAG_NAME
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: https://registry.npmjs.org/
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Publish to NPM
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+
