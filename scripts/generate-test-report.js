@@ -156,7 +156,7 @@ function formatCoverageMarkdown(coverage) {
 function generateMarkdownReport() {
   const projectRoot = path.join(__dirname, '..');
   const testsDir = path.join(projectRoot, 'tests');
-  const outputPath = path.join(testsDir, 'TEST_REPORT.md');
+  const outputPath = path.join(testsDir, 'README.md');
 
   const junitPath = process.env.JUNIT_XML_PATH || path.join(projectRoot, 'test-results.xml');
   const coveragePath =

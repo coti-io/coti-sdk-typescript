@@ -208,12 +208,12 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add tests/TEST_REPORT.md
+          git add tests/README.md
           if git diff --cached --quiet; then
-            echo "No changes to commit for TEST_REPORT.md"
+            echo "No changes to commit for tests/README.md"
             exit 0
           fi
-          git commit -m "Update tests/TEST_REPORT.md [skip ci]"
+          git commit -m "Update tests/README.md [skip ci]"
           git push
 
   build:
