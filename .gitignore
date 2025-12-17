@@ -6,3 +6,4 @@ coverage
 test-results.xml
 *.xml
 test-report
+tests/TEST_REPORT.md
