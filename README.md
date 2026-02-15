@@ -23,6 +23,17 @@ The COTI TypeScript SDK enables **privacy-preserving transactions** on the COTI 
 
 This SDK is essential for applications that need to protect sensitive data while leveraging COTI's privacy features, including garbled circuits and on-chain compute capabilities.
 
+## 📦 Installation
+
+```bash
+npm install @coti-io/coti-sdk-typescript
+```
+
+### Requirements
+
+- Node.js >= 18.20.5
+- TypeScript (for TypeScript projects)
+
 ## 🚀 Why Do You Need This SDK?
 
 ### Privacy-Preserving Transactions
@@ -35,16 +46,21 @@ Seamlessly prepare encrypted input text (`itUint`, `itUint256`, `itString`) that
 Full TypeScript support with comprehensive type definitions for all encrypted data structures, ensuring compile-time safety and better developer experience.
 
 
-## 📦 Installation
+## 🏗️ SDK Types & Structures
 
-```bash
-npm install @coti-io/coti-sdk-typescript
-```
+The SDK defines specific structures for privacy-preserving inputs (`it*`) and on-chain ciphertext outputs (`ct*`), declared in `types.ts`.
 
-### Requirements
+- **`it` (Input Type)**: Represents the encrypted data structure prepared off-chain to be sent **to** a smart contract. It typically contains the `ciphertext` and a `signature` to verify the sender.
+- **`ct` (Ciphertext Type)**: Represents the encrypted data returned **from** a smart contract. It usually consists of the `ciphertext` (BigInt) which can be decrypted by the user who possesses the key.
 
-- Node.js >= 18.20.5
-- TypeScript (for TypeScript projects)
+| Input Type (`it`) | Result Type (`ct`) | Underlying Plaintext                             |
+| :---------------- | :----------------- | :----------------------------------------------- |
+| `itBool`          | `ctBool`           | Boolean (stored as BigInt: `0n` or `1n`)         |
+| `itUint`          | `ctUint`           | Unsigned Integer (up to 128-bit)                 |
+| `itUint256`       | `ctUint256`        | Unsigned Integer (up to 256-bit, split high/low) |
+| `itString`        | `ctString`         | UTF-8 String (chunked into 8-byte segments)      |
+
+
 
 ## 🔧 Quick Start
 
@@ -116,25 +132,53 @@ const decrypted = decryptString(ciphertext, userKey)
 console.log(decrypted) // 'Hello, COTI!'
 ```
 
+### Working with Booleans
+
+Booleans are handled as `0n` (`false`) and `1n` (`true`) using the standard 128-bit integer functions.
+
+```typescript
+import { prepareIT, decryptUint } from '@coti-io/coti-sdk-typescript'
+
+// To encrypt a boolean
+const isMember = true
+const plaintext = isMember ? 1n : 0n
+
+const { ciphertext, signature } = prepareIT(
+  plaintext,
+  { wallet, userKey },
+  contractAddress,
+  functionSelector
+)
+
+// To decrypt back to a boolean
+const decryptedVal = decryptUint(ciphertext, userKey)
+const decryptedBool = decryptedVal === 1n
+console.log(decryptedBool) // true
+```
+
+> [!WARNING]
+> **String Encoding Limitation**: The `encodeString` utility function is primarily designed for internal binary string conversions and ASCII characters. For general-purpose **UTF-8** string encryption (including Emojis, CJK, or non-Latin scripts), you MUST use `buildStringInputText` and `decryptString`, which use standard `TextEncoder` and correctly handle multi-byte characters.
+
 ## 📚 Core Features
 
 ### Data Type Support
 
-| Type | Function | Max Size | Use Case |
-|------|----------|----------|----------|
-| `uint128` | `prepareIT` / `decryptUint` | 128 bits | Standard integers, amounts, IDs |
-| `uint256` | `prepareIT256` / `decryptUint256` | 256 bits | Large numbers, hashes, timestamps |
-| `string` | `buildStringInputText` / `decryptString` | Unlimited | Messages, metadata, JSON data |
+| Type      | Function                                 | Max Size  | Use Case                          |
+| --------- | ---------------------------------------- | --------- | --------------------------------- |
+| `boolean` | `prepareIT` / `decryptUint`              | 1 bit     | Flags, permission toggles         |
+| `uint128` | `prepareIT` / `decryptUint`              | 128 bits  | Standard integers, amounts, IDs   |
+| `uint256` | `prepareIT256` / `decryptUint256`        | 256 bits  | Large numbers, hashes, timestamps |
+| `string`  | `buildStringInputText` / `decryptString` | Unlimited | Messages, metadata, JSON data     |
 
 ### Key Functions
 
 #### Encryption Functions
-- **`prepareIT(plaintext, sender, contractAddress, functionSelector)`** - Encrypts a 128-bit unsigned integer
+- **`prepareIT(plaintext, sender, contractAddress, functionSelector)`** - Encrypts a 128-bit unsigned integer or **boolean** (`1n`/`0n`)
 - **`prepareIT256(plaintext, sender, contractAddress, functionSelector)`** - Encrypts a 256-bit unsigned integer
 - **`buildStringInputText(plaintext, sender, contractAddress, functionSelector)`** - Encrypts a string
 
 #### Decryption Functions
-- **`decryptUint(ciphertext, userKey)`** - Decrypts a 128-bit unsigned integer
+- **`decryptUint(ciphertext, userKey)`** - Decrypts a 128-bit unsigned integer or **boolean**
 - **`decryptUint256(ciphertext, userKey)`** - Decrypts a 256-bit unsigned integer
 - **`decryptString(ciphertext, userKey)`** - Decrypts a string
 
@@ -144,6 +188,7 @@ console.log(decrypted) // 'Hello, COTI!'
 - **`sign(message, privateKey)`** - Sign arbitrary messages
 - **`generateRSAKeyPair()`** - Generate RSA key pairs
 - **`recoverUserKey(privateKey, encryptedKeyShare0, encryptedKeyShare1)`** - Recover AES key from encrypted shares
+
 
 ## 🔐 Security Considerations
 
@@ -169,7 +214,7 @@ This compiles TypeScript to JavaScript in the `dist/` directory.
 
 ### Running Tests
 
-The SDK includes comprehensive test coverage with 212+ tests:
+The SDK includes comprehensive test coverage with **238 tests** and a 100% pass rate. Detailed coverage mapping and testing strategies can be found in the [Test Plan](./TESTS.md).
 
 ```bash
 # Run all tests

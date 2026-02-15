@@ -4,3 +4,4 @@ dist
 coverage
 .env
 tests/README.md
+TESTS.md
