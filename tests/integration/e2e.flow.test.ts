@@ -18,14 +18,7 @@ const TEST_CONSTANTS = {
     FUNCTION_SELECTOR: '0x11223344'
 }
 
-// Validate that all required environment variables are set
-if (!TEST_CONSTANTS.PRIVATE_KEY || !TEST_CONSTANTS.USER_KEY) {
-    throw new Error(
-        'Missing required test environment variables. ' +
-        'Please create a .env file with TEST_PRIVATE_KEY and TEST_USER_KEY. ' +
-        'See example.env for reference.'
-    )
-}
+const HAS_ENV = !!(TEST_CONSTANTS.PRIVATE_KEY && TEST_CONSTANTS.USER_KEY)
 
 function createTestSender() {
     return {
@@ -34,7 +27,8 @@ function createTestSender() {
     }
 }
 
-describe('Integration: End-to-End Flows', () => {
+const describeWithEnv = HAS_ENV ? describe : describe.skip
+describeWithEnv('Integration: End-to-End Flows', () => {
     describe('prepareIT → decryptUint flow', () => {
         test('complete flow: encrypt and decrypt small value', () => {
             const plaintext = 42n

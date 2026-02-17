@@ -15,14 +15,7 @@ const TEST_CONSTANTS = {
     FUNCTION_SELECTOR: '0x11223344'
 }
 
-// Validate that all required environment variables are set
-if (!TEST_CONSTANTS.PRIVATE_KEY || !TEST_CONSTANTS.USER_KEY) {
-    throw new Error(
-        'Missing required test environment variables. ' +
-        'Please create a .env file with TEST_PRIVATE_KEY and TEST_USER_KEY. ' +
-        'See example.env for reference.'
-    )
-}
+const HAS_ENV = !!(TEST_CONSTANTS.PRIVATE_KEY && TEST_CONSTANTS.USER_KEY)
 
 function createTestSender() {
     return {
@@ -31,7 +24,8 @@ function createTestSender() {
     }
 }
 
-describe('Integration: Signature Verification', () => {
+const describeWithEnv = HAS_ENV ? describe : describe.skip
+describeWithEnv('Integration: Signature Verification', () => {
     describe('prepareIT signature format', () => {
         test('signature has correct format (65 bytes: r + s + v)', () => {
             const plaintext = 12345n
@@ -204,7 +198,7 @@ describe('Integration: Signature Verification', () => {
 
             expect(Array.isArray(signature)).toBe(true)
             expect(signature.length).toBeGreaterThan(0)
-            
+
             signature.forEach((sig) => {
                 expect(sig).toBeInstanceOf(Uint8Array)
                 expect(sig.length).toBe(65)

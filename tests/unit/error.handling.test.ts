@@ -13,7 +13,8 @@ import {
     recoverUserKey,
     prepareIT,
     prepareIT256,
-    buildStringInputText
+    buildStringInputText,
+    buildInputText
 } from '../../src'
 
 // Test fixtures
@@ -191,6 +192,34 @@ describe('Unit: Error Handling', () => {
             const exactly129Bits = 2n ** 128n // 129 bits
             expect(() => prepareIT256(
                 exactly129Bits,
+                createTestSender(),
+                TEST_CONSTANTS.CONTRACT_ADDRESS,
+                TEST_CONSTANTS.FUNCTION_SELECTOR
+            )).not.toThrow()
+        })
+    })
+
+    describe('buildInputText error cases', () => {
+        test('throws RangeError when plaintext exceeds 64 bits', () => {
+            const largePlaintext = 2n ** 64n // 65 bits
+            expect(() => buildInputText(
+                largePlaintext,
+                createTestSender(),
+                TEST_CONSTANTS.CONTRACT_ADDRESS,
+                TEST_CONSTANTS.FUNCTION_SELECTOR
+            )).toThrow(RangeError)
+            expect(() => buildInputText(
+                largePlaintext,
+                createTestSender(),
+                TEST_CONSTANTS.CONTRACT_ADDRESS,
+                TEST_CONSTANTS.FUNCTION_SELECTOR
+            )).toThrow('Plaintext size must be 64 bits or smaller.')
+        })
+
+        test('works correctly with exactly 64 bits', () => {
+            const exactly64Bits = (2n ** 64n) - 1n
+            expect(() => buildInputText(
+                exactly64Bits,
                 createTestSender(),
                 TEST_CONSTANTS.CONTRACT_ADDRESS,
                 TEST_CONSTANTS.FUNCTION_SELECTOR
