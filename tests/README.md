@@ -1,6 +1,6 @@
 # Test Report
 
-**Generated:** 2026-02-19T07:20:56.405Z
+**Generated:** 2026-02-19T07:26:56.746Z
 
 ---
 
@@ -21,7 +21,7 @@
 | Passed       | 337 |
 | Failed       | 0 |
 | Errors       | 0 |
-| Duration     | 13.93s |
+| Duration     | 15.35s |
 
 ---
 
@@ -32,7 +32,7 @@
 - **Tests:** 29
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 4.305s
+- **Time:** 4.585s
 
 - ✅ throws RangeError when plaintext exceeds 16 bytes
 - ✅ throws RangeError when key length is not 16 bytes
@@ -71,7 +71,7 @@
 - **Tests:** 37
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.682s
+- **Time:** 0.832s
 
 - ✅ prepareIT produces incorrect result with user key that is too short
 - ✅ prepareIT produces incorrect result with user key that is too long
@@ -118,7 +118,7 @@
 - **Tests:** 14
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.335s
+- **Time:** 0.385s
 
 - ✅ prepareIT output can be decrypted by decryptUint
 - ✅ buildInputText output can be decrypted by decryptUint
@@ -142,7 +142,7 @@
 - **Tests:** 15
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.312s
+- **Time:** 0.361s
 
 - ✅ complete flow: encrypt and decrypt small value
 - ✅ complete flow: encrypt and decrypt large value
@@ -167,7 +167,7 @@
 - **Tests:** 15
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.289s
+- **Time:** 0.265s
 
 - ✅ output matches itUint type structure
 - ✅ ciphertext is valid BigInt for contract submission
@@ -187,12 +187,56 @@
 
 ---
 
+### tests/integration/signature.tampering.test.ts
+
+- **Tests:** 12
+- **Failures:** 0
+- **Errors:** 0
+- **Time:** 0.286s
+
+- ✅ signature verifies with original parameters
+- ✅ signature fails verification when contractAddress is tampered
+- ✅ signature fails verification when functionSelector is tampered
+- ✅ signature fails verification when ciphertext is tampered
+- ✅ signature fails verification when sender address is tampered
+- ✅ signInputText produces valid signature for given parameters
+- ✅ signInputText result is invalid when any parameter is changed
+- ✅ prepareIT256 signatures differ when contractAddress changes
+- ✅ prepareIT256 signatures differ when functionSelector changes
+- ✅ string signatures differ when contractAddress changes
+- ✅ string signatures differ when functionSelector changes
+- ✅ string signatures differ when plaintext changes
+
+---
+
+### tests/integration/signature.verification.test.ts
+
+- **Tests:** 12
+- **Failures:** 0
+- **Errors:** 0
+- **Time:** 0.303s
+
+- ✅ signature has correct format (65 bytes: r + s + v)
+- ✅ signature changes when plaintext changes
+- ✅ signature changes when contract address changes
+- ✅ signature changes when function selector changes
+- ✅ signature format is consistent (same structure)
+- ✅ signature has correct format (65 bytes)
+- ✅ signature changes when plaintext changes
+- ✅ signature format is consistent (same structure)
+- ✅ signatures array has correct format (one per chunk)
+- ✅ signature count matches ciphertext chunk count
+- ✅ signatures change when string changes
+- ✅ signature format is consistent (same structure)
+
+---
+
 ### tests/unit/crypto_utils.test.ts
 
 - **Tests:** 116
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 6.194s
+- **Time:** 7.166s
 
 - ✅ encodeString - basic encoding of a string as a Uint8Array
 - ✅ encodeString - asserts limitation with multi-byte characters (overflow)
@@ -313,56 +357,12 @@
 
 ---
 
-### tests/integration/signature.tampering.test.ts
-
-- **Tests:** 12
-- **Failures:** 0
-- **Errors:** 0
-- **Time:** 0.332s
-
-- ✅ signature verifies with original parameters
-- ✅ signature fails verification when contractAddress is tampered
-- ✅ signature fails verification when functionSelector is tampered
-- ✅ signature fails verification when ciphertext is tampered
-- ✅ signature fails verification when sender address is tampered
-- ✅ signInputText produces valid signature for given parameters
-- ✅ signInputText result is invalid when any parameter is changed
-- ✅ prepareIT256 signatures differ when contractAddress changes
-- ✅ prepareIT256 signatures differ when functionSelector changes
-- ✅ string signatures differ when contractAddress changes
-- ✅ string signatures differ when functionSelector changes
-- ✅ string signatures differ when plaintext changes
-
----
-
-### tests/integration/signature.verification.test.ts
-
-- **Tests:** 12
-- **Failures:** 0
-- **Errors:** 0
-- **Time:** 0.356s
-
-- ✅ signature has correct format (65 bytes: r + s + v)
-- ✅ signature changes when plaintext changes
-- ✅ signature changes when contract address changes
-- ✅ signature changes when function selector changes
-- ✅ signature format is consistent (same structure)
-- ✅ signature has correct format (65 bytes)
-- ✅ signature changes when plaintext changes
-- ✅ signature format is consistent (same structure)
-- ✅ signatures array has correct format (one per chunk)
-- ✅ signature count matches ciphertext chunk count
-- ✅ signatures change when string changes
-- ✅ signature format is consistent (same structure)
-
----
-
 ### tests/unit/property.roundtrip.test.ts
 
 - **Tests:** 73
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.357s
+- **Time:** 0.305s
 
 - ✅ round-trip #0: decodeUint(encodeUint(x)) === x
 - ✅ round-trip #1: decodeUint(encodeUint(x)) === x
@@ -445,7 +445,7 @@
 - **Tests:** 5
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.267s
+- **Time:** 0.302s
 
 - ✅ encrypt produces different ciphertexts on each call (real randomness)
 - ✅ decrypt is agnostic to randomness source
@@ -460,7 +460,7 @@
 - **Tests:** 6
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.277s
+- **Time:** 0.295s
 
 - ✅ throws RangeError when plaintext is exactly 2^64
 - ✅ throws RangeError when plaintext exceeds 2^64
@@ -476,7 +476,7 @@
 - **Tests:** 3
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.22s
+- **Time:** 0.262s
 
 - ✅ round-trip: prepareIT and decryptUint with boolean TRUE (1n)
 - ✅ round-trip: prepareIT and decryptUint with boolean FALSE (0n)
