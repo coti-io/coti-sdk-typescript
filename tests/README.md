@@ -1,6 +1,6 @@
 # Test Report
 
-**Generated:** 2026-02-19T06:39:44.430Z
+**Generated:** 2026-02-19T07:20:56.405Z
 
 ---
 
@@ -21,7 +21,7 @@
 | Passed       | 337 |
 | Failed       | 0 |
 | Errors       | 0 |
-| Duration     | 14.18s |
+| Duration     | 13.93s |
 
 ---
 
@@ -32,7 +32,7 @@
 - **Tests:** 29
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 4.212s
+- **Time:** 4.305s
 
 - ✅ throws RangeError when plaintext exceeds 16 bytes
 - ✅ throws RangeError when key length is not 16 bytes
@@ -71,7 +71,7 @@
 - **Tests:** 37
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.699s
+- **Time:** 0.682s
 
 - ✅ prepareIT produces incorrect result with user key that is too short
 - ✅ prepareIT produces incorrect result with user key that is too long
@@ -118,7 +118,7 @@
 - **Tests:** 14
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.324s
+- **Time:** 0.335s
 
 - ✅ prepareIT output can be decrypted by decryptUint
 - ✅ buildInputText output can be decrypted by decryptUint
@@ -142,7 +142,7 @@
 - **Tests:** 15
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.321s
+- **Time:** 0.312s
 
 - ✅ complete flow: encrypt and decrypt small value
 - ✅ complete flow: encrypt and decrypt large value
@@ -167,7 +167,7 @@
 - **Tests:** 15
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.288s
+- **Time:** 0.289s
 
 - ✅ output matches itUint type structure
 - ✅ ciphertext is valid BigInt for contract submission
@@ -187,56 +187,12 @@
 
 ---
 
-### tests/integration/signature.tampering.test.ts
-
-- **Tests:** 12
-- **Failures:** 0
-- **Errors:** 0
-- **Time:** 0.288s
-
-- ✅ signature verifies with original parameters
-- ✅ signature fails verification when contractAddress is tampered
-- ✅ signature fails verification when functionSelector is tampered
-- ✅ signature fails verification when ciphertext is tampered
-- ✅ signature fails verification when sender address is tampered
-- ✅ signInputText produces valid signature for given parameters
-- ✅ signInputText result is invalid when any parameter is changed
-- ✅ prepareIT256 signatures differ when contractAddress changes
-- ✅ prepareIT256 signatures differ when functionSelector changes
-- ✅ string signatures differ when contractAddress changes
-- ✅ string signatures differ when functionSelector changes
-- ✅ string signatures differ when plaintext changes
-
----
-
-### tests/integration/signature.verification.test.ts
-
-- **Tests:** 12
-- **Failures:** 0
-- **Errors:** 0
-- **Time:** 0.298s
-
-- ✅ signature has correct format (65 bytes: r + s + v)
-- ✅ signature changes when plaintext changes
-- ✅ signature changes when contract address changes
-- ✅ signature changes when function selector changes
-- ✅ signature format is consistent (same structure)
-- ✅ signature has correct format (65 bytes)
-- ✅ signature changes when plaintext changes
-- ✅ signature format is consistent (same structure)
-- ✅ signatures array has correct format (one per chunk)
-- ✅ signature count matches ciphertext chunk count
-- ✅ signatures change when string changes
-- ✅ signature format is consistent (same structure)
-
----
-
 ### tests/unit/crypto_utils.test.ts
 
 - **Tests:** 116
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 6.522s
+- **Time:** 6.194s
 
 - ✅ encodeString - basic encoding of a string as a Uint8Array
 - ✅ encodeString - asserts limitation with multi-byte characters (overflow)
@@ -357,18 +313,47 @@
 
 ---
 
-### tests/integration/mock.parity.test.ts
+### tests/integration/signature.tampering.test.ts
 
-- **Tests:** 5
+- **Tests:** 12
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.32s
+- **Time:** 0.332s
 
-- ✅ encrypt produces different ciphertexts on each call (real randomness)
-- ✅ decrypt is agnostic to randomness source
-- ✅ prepareIT with real randomness produces different ciphertexts but same decrypted value
-- ✅ prepareIT round-trip works for boundary values with real randomness
-- ✅ prepareIT256 with real randomness produces different ciphertexts but same decrypted value
+- ✅ signature verifies with original parameters
+- ✅ signature fails verification when contractAddress is tampered
+- ✅ signature fails verification when functionSelector is tampered
+- ✅ signature fails verification when ciphertext is tampered
+- ✅ signature fails verification when sender address is tampered
+- ✅ signInputText produces valid signature for given parameters
+- ✅ signInputText result is invalid when any parameter is changed
+- ✅ prepareIT256 signatures differ when contractAddress changes
+- ✅ prepareIT256 signatures differ when functionSelector changes
+- ✅ string signatures differ when contractAddress changes
+- ✅ string signatures differ when functionSelector changes
+- ✅ string signatures differ when plaintext changes
+
+---
+
+### tests/integration/signature.verification.test.ts
+
+- **Tests:** 12
+- **Failures:** 0
+- **Errors:** 0
+- **Time:** 0.356s
+
+- ✅ signature has correct format (65 bytes: r + s + v)
+- ✅ signature changes when plaintext changes
+- ✅ signature changes when contract address changes
+- ✅ signature changes when function selector changes
+- ✅ signature format is consistent (same structure)
+- ✅ signature has correct format (65 bytes)
+- ✅ signature changes when plaintext changes
+- ✅ signature format is consistent (same structure)
+- ✅ signatures array has correct format (one per chunk)
+- ✅ signature count matches ciphertext chunk count
+- ✅ signatures change when string changes
+- ✅ signature format is consistent (same structure)
 
 ---
 
@@ -377,7 +362,7 @@
 - **Tests:** 73
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.351s
+- **Time:** 0.357s
 
 - ✅ round-trip #0: decodeUint(encodeUint(x)) === x
 - ✅ round-trip #1: decodeUint(encodeUint(x)) === x
@@ -455,16 +440,18 @@
 
 ---
 
-### tests/integration/bool.integration.test.ts
+### tests/integration/mock.parity.test.ts
 
-- **Tests:** 3
+- **Tests:** 5
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.253s
+- **Time:** 0.267s
 
-- ✅ round-trip: prepareIT and decryptUint with boolean TRUE (1n)
-- ✅ round-trip: prepareIT and decryptUint with boolean FALSE (0n)
-- ✅ utility: converting JS boolean to SDK-compatible bigint
+- ✅ encrypt produces different ciphertexts on each call (real randomness)
+- ✅ decrypt is agnostic to randomness source
+- ✅ prepareIT with real randomness produces different ciphertexts but same decrypted value
+- ✅ prepareIT round-trip works for boundary values with real randomness
+- ✅ prepareIT256 with real randomness produces different ciphertexts but same decrypted value
 
 ---
 
@@ -473,7 +460,7 @@
 - **Tests:** 6
 - **Failures:** 0
 - **Errors:** 0
-- **Time:** 0.305s
+- **Time:** 0.277s
 
 - ✅ throws RangeError when plaintext is exactly 2^64
 - ✅ throws RangeError when plaintext exceeds 2^64
@@ -481,6 +468,19 @@
 - ✅ succeeds with plaintext = 2^64 - 1 (maximum valid 64-bit value)
 - ✅ succeeds with zero plaintext
 - ✅ succeeds with small values within 64-bit range
+
+---
+
+### tests/integration/bool.integration.test.ts
+
+- **Tests:** 3
+- **Failures:** 0
+- **Errors:** 0
+- **Time:** 0.22s
+
+- ✅ round-trip: prepareIT and decryptUint with boolean TRUE (1n)
+- ✅ round-trip: prepareIT and decryptUint with boolean FALSE (0n)
+- ✅ utility: converting JS boolean to SDK-compatible bigint
 
 ---
 
