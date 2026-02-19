@@ -3,6 +3,8 @@ dist
 .idea
 coverage
 .env
+tests/README.md
+TESTS.md
 test-results.xml
 *.xml
 test-report

@@ -19,14 +19,7 @@ const TEST_CONSTANTS = {
     FUNCTION_SELECTOR: '0x11223344'
 }
 
-// Validate that all required environment variables are set
-if (!TEST_CONSTANTS.PRIVATE_KEY || !TEST_CONSTANTS.USER_KEY) {
-    throw new Error(
-        'Missing required test environment variables. ' +
-        'Please create a .env file with TEST_PRIVATE_KEY and TEST_USER_KEY. ' +
-        'See example.env for reference.'
-    )
-}
+const HAS_ENV = !!(TEST_CONSTANTS.PRIVATE_KEY && TEST_CONSTANTS.USER_KEY)
 
 function createTestSender() {
     return {
@@ -35,7 +28,8 @@ function createTestSender() {
     }
 }
 
-describe('Integration: Cross-Function Compatibility', () => {
+const describeWithEnv = HAS_ENV ? describe : describe.skip
+describeWithEnv('Integration: Cross-Function Compatibility', () => {
     describe('prepareIT and decryptUint compatibility', () => {
         test('prepareIT output can be decrypted by decryptUint', () => {
             const plaintext = 12345n
@@ -323,7 +317,7 @@ describe('Integration: Cross-Function Compatibility', () => {
             expect(typeof ciphertext).toBe('bigint')
             expect(ciphertext).not.toHaveProperty('ciphertextHigh')
             expect(ciphertext).not.toHaveProperty('ciphertextLow')
-            
+
             // Attempting to use wrong format should fail
             expect(() => {
                 decryptUint256({ ciphertextHigh: ciphertext, ciphertextLow: 0n } as any, sender.userKey)

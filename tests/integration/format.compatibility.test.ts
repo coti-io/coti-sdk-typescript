@@ -16,14 +16,7 @@ const TEST_CONSTANTS = {
     FUNCTION_SELECTOR: '0x11223344'
 }
 
-// Validate that all required environment variables are set
-if (!TEST_CONSTANTS.PRIVATE_KEY || !TEST_CONSTANTS.USER_KEY) {
-    throw new Error(
-        'Missing required test environment variables. ' +
-        'Please create a .env file with TEST_PRIVATE_KEY and TEST_USER_KEY. ' +
-        'See example.env for reference.'
-    )
-}
+const HAS_ENV = !!(TEST_CONSTANTS.PRIVATE_KEY && TEST_CONSTANTS.USER_KEY)
 
 function createTestSender() {
     return {
@@ -32,7 +25,8 @@ function createTestSender() {
     }
 }
 
-describe('Integration: Format Compatibility', () => {
+const describeWithEnv = HAS_ENV ? describe : describe.skip
+describeWithEnv('Integration: Format Compatibility', () => {
     describe('itUint format (prepareIT output)', () => {
         test('output matches itUint type structure', () => {
             const plaintext = 12345n
@@ -77,7 +71,7 @@ describe('Integration: Format Compatibility', () => {
             // Verify signature format is compatible with contract bytes parameter
             expect(signature).toBeInstanceOf(Uint8Array)
             expect(signature.length).toBe(65)
-            
+
             // Can be converted to hex string for contract calls
             const sigArray = signature instanceof Uint8Array ? signature : new Uint8Array()
             const hexString = '0x' + Array.from(sigArray)
