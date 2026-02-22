@@ -2,9 +2,9 @@ name: Combined CI/CD and Publish Pipeline
 
 on:
   push:
-    branches: [ main, development ]
+    branches: [ main, development, tests-reporting ]
   pull_request:
-    branches: [ main, development ]
+    branches: [ main, development, tests-reporting ]
   workflow_dispatch:
   release:
     types: [ created ]
