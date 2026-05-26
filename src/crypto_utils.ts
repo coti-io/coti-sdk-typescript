@@ -1,5 +1,5 @@
 import forge from 'node-forge'
-import { BaseWallet, getBytes, SigningKey, solidityPackedKeccak256 } from "ethers"
+import { BaseWallet, getBytes, SigningKey, solidityPackedKeccak256, hexlify, concat } from "ethers"
 import { ctString, ctUint, ctUint256, itString, itUint, itUint256 } from './types';
 
 const BLOCK_SIZE = 16 // AES block size in bytes
@@ -544,4 +544,169 @@ export function prepareIT256(
         },
         signature
     }
+}
+// ------------- Wallet Plugin Additions -------------
+
+/**
+ * Strips "0x" prefix and converts an AES key to lowercase.
+ * Accepts both 32-char (128-bit) and 64-char (256-bit) hex strings.
+ * Throws if the key contains invalid hexadecimal characters.
+ * 
+ * @param aesKey - The AES key string, optionally prefixed with "0x".
+ * @returns The normalized lowercase hex string.
+ */
+export function normalizeAesKey(aesKey: string): string {
+  const trimmed = aesKey.startsWith('0x') ? aesKey.slice(2) : aesKey;
+  const lowered = trimmed.toLowerCase();
+  if (!/^[0-9a-f]+$/.test(lowered)) {
+    throw new Error('Invalid AES key: contains non-hexadecimal characters');
+  }
+  if (lowered.length !== 32 && lowered.length !== 64) {
+    throw new Error(`Invalid AES key: expected 32 or 64 hex characters, got ${lowered.length}`);
+  }
+  return lowered;
+}
+
+/**
+ * Validates whether an AES key is provided and normalizes it.
+ *
+ * @param aesKey - The AES key string to validate.
+ * @returns The normalized lowercase hex string.
+ * @throws Error if the key is empty, null, or invalid.
+ */
+export function validateAesKey(aesKey: string | null | undefined): string {
+  if (!aesKey) {
+    throw new Error('AES key is required');
+  }
+  return normalizeAesKey(aesKey);
+}
+
+export interface DecryptionOptions {
+  decimals?: number;
+  insaneThresholdBase?: bigint;
+}
+
+const DEFAULT_INSANE_THRESHOLD_BASE = 1_000_000_000_000n;
+
+function normalizeDecimals(decimals?: number | null): number {
+  if (decimals === undefined || decimals === null) { return 18; }
+  if (!Number.isFinite(decimals)) { return 18; }
+  if (decimals < 0) { return 0; }
+  if (decimals > 36) { return 36; }
+  return Math.floor(decimals);
+}
+
+/**
+ * Checks if a decrypted bigint exceeds the standard plausible threshold.
+ * Useful as a sanity check to prevent DApps from rendering massive garbaged numbers 
+ * caused by decrypting a zero/invalid token balance with an incorrect AES key.
+ *
+ * @param value - The decrypted bigint to check.
+ * @param decimals - Token decimal places (0-36).
+ * @param thresholdBase - Base multiplier limit.
+ * @returns True if value exceeds sanity bounds.
+ */
+export function isInsaneDecryptedValue(
+  value: bigint,
+  decimals?: number,
+  thresholdBase?: bigint,
+): boolean {
+  const safeDecimals = normalizeDecimals(decimals);
+  const base = thresholdBase ?? DEFAULT_INSANE_THRESHOLD_BASE;
+  const threshold = base * 10n ** BigInt(safeDecimals);
+  return value > threshold;
+}
+
+function isZeroValue(value: unknown): boolean {
+  if (typeof value === 'bigint') { return value === 0n; }
+  if (typeof value === 'number') { return value === 0; }
+  if (typeof value === 'string') { return value === '0'; }
+  return false;
+}
+
+/**
+ * High-level wrapper for `decryptUint` strictly intended for 64-bit ctUint ciphertexts.
+ * - Resolves known empty/zero payloads securely to `0n` mapped locally.
+ * - Applies a threshold scaling sanity check (`isInsaneDecryptedValue`) avoiding garbage values 
+ *   when supplied with mismatched AES encryption bounds.
+ *
+ * @param ciphertext - The raw 64-bit encrypted integer.
+ * @param aesKey - Full AES encryption key.
+ * @param options - Decryption constraints configuration.
+ * @returns Plaintext BigInt, or `null` if the sanity check threshold fails.
+ */
+export function decryptCtUint64(
+  ciphertext: ctUint,
+  aesKey: string,
+  options?: DecryptionOptions,
+): bigint | null {
+  try {
+    if (isZeroValue(ciphertext)) {
+      return 0n;
+    }
+    const normalizedKey = normalizeAesKey(aesKey);
+    const rawDecrypted = decryptUint(ciphertext, normalizedKey);
+    const decrypted = typeof rawDecrypted === 'bigint' ? rawDecrypted : BigInt(rawDecrypted);
+    if (isInsaneDecryptedValue(decrypted, options?.decimals, options?.insaneThresholdBase)) {
+      return null;
+    }
+    return decrypted;
+  } catch (error) {
+    console.error('[decryptCtUint64] failed:', error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+/**
+ * Produces a raw ECDSA signature object containing r, s, and v elements based on a wallet digest.
+ *
+ * @param privateKey - The signing wallet's private key hex.
+ * @param digest - The keccak256 message bytes hex.
+ * @returns Object formatted as `{ r, s, v }`.
+ */
+export function signDigest(
+  privateKey: string,
+  digest: string,
+): { r: string; s: string; v: number } {
+  const signingKey = new SigningKey(privateKey);
+  const sig = signingKey.sign(digest);
+  return { r: sig.r, s: sig.s, v: sig.v };
+}
+
+/**
+ * Normalizes signature v-bytes to 0x00/0x01 based mappings.
+ *
+ * @param sig - ECDSA signature configuration components.
+ * @returns Standard 65-byte length hex string signature.
+ */
+export function normalizeSignature(sig: { r: string; s: string; v: number; }): string {
+  const vByte = sig.v === 27 ? '0x00' : '0x01';
+  return hexlify(concat([sig.r, sig.s, vByte]));
+}
+
+/**
+ * Builds the COTI IT specific standardized Signature string computing `solidityPackedKeccak256` 
+ * across the sender, transaction destination, function identifier, and nested ciphertext, 
+ * returning proper hex normalized representation.
+ *
+ * @param signerAddress - The EVM signer's wallet parameter constraints.
+ * @param contractAddress - The target Smart Contract destination address.
+ * @param functionSelector - EVM hex data subset signature identifier.
+ * @param ciphertext - Final transaction ciphertext parameter encoded representation.
+ * @param privateKey - The transaction execution signer's private key.
+ * @returns 65-byte length IT compliant EVM ready signature.
+ */
+export function buildItSignature(
+  signerAddress: string,
+  contractAddress: string,
+  functionSelector: string,
+  ciphertext: bigint,
+  privateKey: string,
+): string {
+  const digest = solidityPackedKeccak256(
+    ['address', 'address', 'bytes4', 'uint256'],
+    [signerAddress, contractAddress, functionSelector, ciphertext],
+  );
+  const sig = signDigest(privateKey, digest);
+  return normalizeSignature(sig);
 }
