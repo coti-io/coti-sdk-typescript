@@ -1,5 +1,5 @@
 import forge from 'node-forge'
-import { BaseWallet, getBytes, SigningKey, solidityPackedKeccak256, hexlify } from "ethers"
+import { BaseWallet, getBytes, SigningKey, solidityPackedKeccak256, hexlify, Wallet } from "ethers"
 import { ctString, ctUint, ctUint256, itString, itUint, itUint256 } from './types';
 
 const BLOCK_SIZE = 16 // AES block size in bytes
@@ -558,130 +558,151 @@ export function prepareIT256(
 // ------------- Wallet Plugin Additions -------------
 
 /**
- * Strips "0x" prefix and converts an AES key to lowercase.
- * COTI uses a 128-bit AES key, so only 32-char hex strings are accepted.
- * Throws if the key contains invalid hexadecimal characters or has the wrong length.
- * 
- * @param aesKey - The AES key string, optionally prefixed with "0x".
+ * Strips the "0x" prefix and lowercases an AES key.
+ * COTI uses a 128-bit AES key, so only 32-character hex strings are accepted.
+ *
+ * @param aesKey - The AES key, optionally prefixed with "0x".
  * @returns The normalized lowercase hex string.
+ * @throws Error if the key contains non-hex characters or is not 32 hex characters.
  */
 export function normalizeAesKey(aesKey: string): string {
-  const trimmed = aesKey.startsWith('0x') ? aesKey.slice(2) : aesKey;
-  const lowered = trimmed.toLowerCase();
-  if (!/^[0-9a-f]+$/.test(lowered)) {
-    throw new Error('Invalid AES key: contains non-hexadecimal characters');
-  }
-  if (lowered.length !== 32) {
-    throw new Error(`Invalid AES key: expected 32 hex characters (128-bit), got ${lowered.length}`);
-  }
-  return lowered;
+    const trimmed = aesKey.startsWith("0x") ? aesKey.slice(2) : aesKey
+    const lowered = trimmed.toLowerCase()
+
+    if (!/^[0-9a-f]+$/.test(lowered)) {
+        throw new Error("Invalid AES key: contains non-hexadecimal characters")
+    }
+
+    if (lowered.length !== 32) {
+        throw new Error(`Invalid AES key: expected 32 hex characters (128-bit), got ${lowered.length}`)
+    }
+
+    return lowered
 }
 
 /**
- * Validates whether an AES key is provided and normalizes it.
+ * Ensures an AES key is provided, then normalizes it.
  *
- * @param aesKey - The AES key string to validate.
+ * @param aesKey - The AES key to validate.
  * @returns The normalized lowercase hex string.
- * @throws Error if the key is empty, null, or invalid.
+ * @throws Error if the key is empty, null, undefined, or invalid.
  */
 export function validateAesKey(aesKey: string | null | undefined): string {
-  if (!aesKey) {
-    throw new Error('AES key is required');
-  }
-  return normalizeAesKey(aesKey);
+    if (!aesKey) {
+        throw new Error("AES key is required")
+    }
+
+    return normalizeAesKey(aesKey)
 }
 
 export interface DecryptionOptions {
-  decimals?: number;
-  insaneThresholdBase?: bigint;
+    decimals?: number
+    insaneThresholdBase?: bigint
 }
 
-const DEFAULT_INSANE_THRESHOLD_BASE = 1_000_000_000_000n;
+const DEFAULT_INSANE_THRESHOLD_BASE = 1_000_000_000_000n
 
+// Validates token decimals, defaulting to 18 when not provided.
+// Throws on clearly-invalid input (non-integer, negative, or out of the 0-36 range).
 function normalizeDecimals(decimals?: number | null): number {
-  if (decimals === undefined || decimals === null) { return 18; }
-  if (!Number.isFinite(decimals)) { return 18; }
-  if (decimals < 0) { return 0; }
-  if (decimals > 36) { return 36; }
-  return Math.floor(decimals);
+    if (decimals === undefined || decimals === null) {
+        return 18
+    }
+
+    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) {
+        throw new Error(`Invalid decimals: expected an integer between 0 and 36, got ${decimals}`)
+    }
+
+    return decimals
 }
 
 /**
- * Checks if a decrypted bigint exceeds the standard plausible threshold.
- * Useful as a sanity check to prevent DApps from rendering massive garbaged numbers 
- * caused by decrypting a zero/invalid token balance with an incorrect AES key.
+ * Validation-only heuristic: checks whether a decrypted value exceeds a plausible
+ * balance threshold. This is NOT a cryptographic guarantee — it is a best-effort
+ * sanity check so that a balance decrypted with the wrong AES key is flagged rather
+ * than rendered as an implausibly large number. Intended for balance validation in
+ * consuming applications; it does not affect correctness of decryption itself.
  *
- * @param value - The decrypted bigint to check.
- * @param decimals - Token decimal places (0-36).
- * @param thresholdBase - Base multiplier limit.
- * @returns True if value exceeds sanity bounds.
+ * The threshold is `thresholdBase * 10^decimals`. Tune `thresholdBase`/`decimals`
+ * per token if the defaults are too strict for a given use case.
+ *
+ * @param value - The decrypted value to validate.
+ * @param decimals - Token decimal places (clamped to 0-36, default 18).
+ * @param thresholdBase - Base multiplier for the threshold (default 1e12).
+ * @returns True if the value exceeds the plausibility threshold (i.e. likely invalid).
  */
 export function isInsaneDecryptedValue(
-  value: bigint,
-  decimals?: number,
-  thresholdBase?: bigint,
+    value: bigint,
+    decimals?: number,
+    thresholdBase?: bigint
 ): boolean {
-  const safeDecimals = normalizeDecimals(decimals);
-  const base = thresholdBase ?? DEFAULT_INSANE_THRESHOLD_BASE;
-  const threshold = base * 10n ** BigInt(safeDecimals);
-  return value > threshold;
+    const safeDecimals = normalizeDecimals(decimals)
+    const base = thresholdBase ?? DEFAULT_INSANE_THRESHOLD_BASE
+    const threshold = base * 10n ** BigInt(safeDecimals)
+
+    return value > threshold
 }
 
-function isZeroValue(value: unknown): boolean {
-  if (typeof value === 'bigint') { return value === 0n; }
-  if (typeof value === 'number') { return value === 0; }
-  if (typeof value === 'string') { return value === '0'; }
-  return false;
+// Returns true when the ciphertext represents a zero value.
+function isZeroValue(value: ctUint): boolean {
+    return value === 0n
 }
 
 /**
- * High-level wrapper for `decryptUint` strictly intended for 64-bit ctUint ciphertexts.
- * - Resolves known empty/zero payloads securely to `0n` mapped locally.
- * - Applies a threshold scaling sanity check (`isInsaneDecryptedValue`) avoiding garbage values 
- *   when supplied with mismatched AES encryption bounds.
+ * High-level wrapper over `decryptUint` for 64-bit ctUint ciphertexts.
+ * - Short-circuits a zero ciphertext to `0n` without touching the key.
+ * - Applies a plausibility sanity check (`isInsaneDecryptedValue`).
  *
- * @param ciphertext - The raw 64-bit encrypted integer.
- * @param aesKey - Full AES encryption key.
- * @param options - Decryption constraints configuration.
- * @returns Plaintext BigInt, or `null` if the value fails the plausibility sanity check.
+ * @param ciphertext - The encrypted 64-bit value.
+ * @param aesKey - The AES key (32 hex chars, optionally "0x"-prefixed).
+ * @param options - Optional decimals and threshold configuration.
+ * @returns The decrypted value, or `null` if it fails the plausibility check.
  * @throws Error if the AES key is invalid or decryption fails.
  */
 export function decryptCtUint64(
-  ciphertext: ctUint,
-  aesKey: string,
-  options?: DecryptionOptions,
+    ciphertext: ctUint,
+    aesKey: string,
+    options?: DecryptionOptions
 ): bigint | null {
-  if (isZeroValue(ciphertext)) {
-    return 0n;
-  }
-  const normalizedKey = normalizeAesKey(aesKey);
-  const rawDecrypted = decryptUint(ciphertext, normalizedKey);
-  const decrypted = typeof rawDecrypted === 'bigint' ? rawDecrypted : BigInt(rawDecrypted);
-  if (isInsaneDecryptedValue(decrypted, options?.decimals, options?.insaneThresholdBase)) {
-    return null;
-  }
-  return decrypted;
+    if (isZeroValue(ciphertext)) {
+        return 0n
+    }
+
+    const normalizedKey = normalizeAesKey(aesKey)
+    const rawDecrypted = decryptUint(ciphertext, normalizedKey)
+    const decrypted = typeof rawDecrypted === "bigint" ? rawDecrypted : BigInt(rawDecrypted)
+
+    if (isInsaneDecryptedValue(decrypted, options?.decimals, options?.insaneThresholdBase)) {
+        return null
+    }
+
+    return decrypted
 }
 
 /**
- * Builds the COTI IT specific standardized Signature string computing `solidityPackedKeccak256` 
- * across the sender, transaction destination, function identifier, and nested ciphertext, 
- * returning proper hex normalized representation.
+ * Builds a COTI input-text (IT) signature over (signer, contract, selector, ciphertext).
  *
- * @param signerAddress - The EVM signer's wallet parameter constraints.
- * @param contractAddress - The target Smart Contract destination address.
- * @param functionSelector - EVM hex data subset signature identifier.
- * @param ciphertext - Final transaction ciphertext parameter encoded representation.
- * @param privateKey - The transaction execution signer's private key.
- * @returns 65-byte length IT compliant EVM ready signature.
+ * @param signerAddress - Address of the signer; must match the address derived from privateKey.
+ * @param contractAddress - Target contract address.
+ * @param functionSelector - 4-byte function selector (e.g. "0x11223344").
+ * @param ciphertext - The encrypted value being signed.
+ * @param privateKey - Signer's private key.
+ * @returns The 65-byte signature as a hex string.
+ * @throws Error if signerAddress does not match the address derived from privateKey.
  */
 export function buildItSignature(
-  signerAddress: string,
-  contractAddress: string,
-  functionSelector: string,
-  ciphertext: bigint,
-  privateKey: string,
+    signerAddress: string,
+    contractAddress: string,
+    functionSelector: string,
+    ciphertext: bigint,
+    privateKey: string
 ): string {
-  const digest = buildItMessageHash(signerAddress, contractAddress, functionSelector, ciphertext);
-  return hexlify(sign(digest, privateKey));
+    const derivedAddress = new Wallet(privateKey).address
+    if (derivedAddress.toLowerCase() !== signerAddress.toLowerCase()) {
+        throw new Error("Invalid signer: signerAddress does not match the address derived from privateKey")
+    }
+
+    const digest = buildItMessageHash(signerAddress, contractAddress, functionSelector, ciphertext)
+
+    return hexlify(sign(digest, privateKey))
 }

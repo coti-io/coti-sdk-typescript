@@ -78,22 +78,27 @@ describe('isInsaneDecryptedValue', () => {
         expect(isInsaneDecryptedValue(100n, 0, 100n)).toBe(false)
     })
 
-    test('clamps negative decimals to 0', () => {
-        // decimals clamped to 0 => threshold = 1 * 10^0 = 1
-        expect(isInsaneDecryptedValue(2n, -5, 1n)).toBe(true)
-        expect(isInsaneDecryptedValue(1n, -5, 1n)).toBe(false)
+    test('accepts a valid in-range decimals value', () => {
+        // decimals = 6 => threshold = 1 * 10^6
+        expect(isInsaneDecryptedValue(10n ** 6n, 6, 1n)).toBe(false)
+        expect(isInsaneDecryptedValue(10n ** 6n + 1n, 6, 1n)).toBe(true)
     })
 
-    test('clamps decimals above 36', () => {
-        // decimals clamped to 36 => threshold = 1 * 10^36
-        expect(isInsaneDecryptedValue(10n ** 36n, 40, 1n)).toBe(false)
-        expect(isInsaneDecryptedValue(10n ** 36n + 1n, 40, 1n)).toBe(true)
+    test('throws on negative decimals', () => {
+        expect(() => isInsaneDecryptedValue(2n, -5, 1n)).toThrow('Invalid decimals')
     })
 
-    test('falls back to 18 decimals for non-finite input', () => {
-        // decimals NaN => 18 => threshold = 1 * 10^18
-        expect(isInsaneDecryptedValue(10n ** 18n, NaN, 1n)).toBe(false)
-        expect(isInsaneDecryptedValue(10n ** 18n + 1n, NaN, 1n)).toBe(true)
+    test('throws on decimals above 36', () => {
+        expect(() => isInsaneDecryptedValue(2n, 40, 1n)).toThrow('Invalid decimals')
+    })
+
+    test('throws on non-integer decimals', () => {
+        expect(() => isInsaneDecryptedValue(2n, 6.7, 1n)).toThrow('Invalid decimals')
+    })
+
+    test('throws on non-finite decimals', () => {
+        expect(() => isInsaneDecryptedValue(2n, NaN, 1n)).toThrow('Invalid decimals')
+        expect(() => isInsaneDecryptedValue(2n, Infinity, 1n)).toThrow('Invalid decimals')
     })
 })
 
@@ -197,5 +202,20 @@ describe('buildItSignature', () => {
         )
 
         expect(fromBuild).toBe(fromSignInputText)
+    })
+
+    test('throws when signerAddress does not match the private key', () => {
+        const wallet = Wallet.createRandom()
+        const otherWallet = Wallet.createRandom()
+
+        expect(() =>
+            buildItSignature(
+                otherWallet.address,
+                CONTRACT_ADDRESS,
+                FUNCTION_SELECTOR,
+                12345n,
+                wallet.privateKey
+            )
+        ).toThrow('does not match the address derived from privateKey')
     })
 })
