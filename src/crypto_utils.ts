@@ -659,25 +659,27 @@ function isZeroValue(value: ctUint): boolean {
  * @returns The decrypted value, or `null` if it fails the plausibility check.
  * @throws Error if the AES key is invalid or decryption fails.
  */
-export function decryptCtUint64(
-    ciphertext: ctUint,
-    aesKey: string,
-    options?: DecryptionOptions
-): bigint | null {
-    if (isZeroValue(ciphertext)) {
-        return 0n
-    }
+// export function decryptCtUint64(
+//     ciphertext: ctUint,
+//     aesKey: string,
+//     options?: DecryptionOptions
+// ): bigint | null {
+//     if (isZeroValue(ciphertext)) {
+//         return 0n
+//     }
 
-    const normalizedKey = normalizeAesKey(aesKey)
-    const rawDecrypted = decryptUint(ciphertext, normalizedKey)
-    const decrypted = typeof rawDecrypted === "bigint" ? rawDecrypted : BigInt(rawDecrypted)
+//     const normalizedKey = normalizeAesKey(aesKey)
+//     const rawDecrypted = decryptUint(ciphertext, normalizedKey)
+//     const decrypted = typeof rawDecrypted === "bigint" ? rawDecrypted : BigInt(rawDecrypted)
 
-    if (isInsaneDecryptedValue(decrypted, options?.decimals, options?.insaneThresholdBase)) {
-        return null
-    }
+//     if (isInsaneDecryptedValue(decrypted, options?.decimals, options?.insaneThresholdBase)) {
+//         return null
+//     }
 
-    return decrypted
-}
+//     return decrypted
+// }
+
+/// PERCIVAL TO REMOVE THE ABOVE AND DO recompute of the ciphertext blocked with stored r
 
 /**
  * Builds a COTI input-text (IT) signature over (signer, contract, selector, ciphertext).
@@ -697,12 +699,10 @@ export function buildItSignature(
     ciphertext: bigint,
     privateKey: string
 ): string {
-    const derivedAddress = new Wallet(privateKey).address
-    if (derivedAddress.toLowerCase() !== signerAddress.toLowerCase()) {
-        throw new Error("Invalid signer: signerAddress does not match the address derived from privateKey")
+    const wallet = new Wallet(privateKey);
+    if ( wallet.address.toLowerCase() !== signerAddress.toLowerCase()) {
+        throw new Error("Invalid signer: signerAddress does not match the address derived from privateKey");
     }
-
-    const digest = buildItMessageHash(signerAddress, contractAddress, functionSelector, ciphertext)
-
-    return hexlify(sign(digest, privateKey))
+    let signature = signInputText({ wallet, userKey: ''}, contractAddress, functionSelector, ciphertext);
+    return hexlify(signature);
 }
