@@ -1,5 +1,5 @@
 import forge from 'node-forge'
-import { BaseWallet, getBytes, SigningKey, solidityPackedKeccak256, hexlify, concat } from "ethers"
+import { BaseWallet, getBytes, SigningKey, solidityPackedKeccak256, hexlify } from "ethers"
 import { ctString, ctUint, ctUint256, itString, itUint, itUint256 } from './types';
 
 const BLOCK_SIZE = 16 // AES block size in bytes
@@ -658,33 +658,6 @@ export function decryptCtUint64(
 }
 
 /**
- * Produces a raw ECDSA signature object containing r, s, and v elements based on a wallet digest.
- *
- * @param privateKey - The signing wallet's private key hex.
- * @param digest - The keccak256 message bytes hex.
- * @returns Object formatted as `{ r, s, v }`.
- */
-export function signDigest(
-  privateKey: string,
-  digest: string,
-): { r: string; s: string; v: number } {
-  const signingKey = new SigningKey(privateKey);
-  const sig = signingKey.sign(digest);
-  return { r: sig.r, s: sig.s, v: sig.v };
-}
-
-/**
- * Normalizes signature v-bytes to 0x00/0x01 based mappings.
- *
- * @param sig - ECDSA signature configuration components.
- * @returns Standard 65-byte length hex string signature.
- */
-export function normalizeSignature(sig: { r: string; s: string; v: number; }): string {
-  const vByte = sig.v === 27 ? '0x00' : '0x01';
-  return hexlify(concat([sig.r, sig.s, vByte]));
-}
-
-/**
  * Builds the COTI IT specific standardized Signature string computing `solidityPackedKeccak256` 
  * across the sender, transaction destination, function identifier, and nested ciphertext, 
  * returning proper hex normalized representation.
@@ -707,6 +680,5 @@ export function buildItSignature(
     ['address', 'address', 'bytes4', 'uint256'],
     [signerAddress, contractAddress, functionSelector, ciphertext],
   );
-  const sig = signDigest(privateKey, digest);
-  return normalizeSignature(sig);
+  return hexlify(sign(digest, privateKey));
 }
