@@ -559,8 +559,8 @@ export function prepareIT256(
 
 /**
  * Strips "0x" prefix and converts an AES key to lowercase.
- * Accepts both 32-char (128-bit) and 64-char (256-bit) hex strings.
- * Throws if the key contains invalid hexadecimal characters.
+ * COTI uses a 128-bit AES key, so only 32-char hex strings are accepted.
+ * Throws if the key contains invalid hexadecimal characters or has the wrong length.
  * 
  * @param aesKey - The AES key string, optionally prefixed with "0x".
  * @returns The normalized lowercase hex string.
@@ -571,8 +571,8 @@ export function normalizeAesKey(aesKey: string): string {
   if (!/^[0-9a-f]+$/.test(lowered)) {
     throw new Error('Invalid AES key: contains non-hexadecimal characters');
   }
-  if (lowered.length !== 32 && lowered.length !== 64) {
-    throw new Error(`Invalid AES key: expected 32 or 64 hex characters, got ${lowered.length}`);
+  if (lowered.length !== 32) {
+    throw new Error(`Invalid AES key: expected 32 hex characters (128-bit), got ${lowered.length}`);
   }
   return lowered;
 }
@@ -643,28 +643,24 @@ function isZeroValue(value: unknown): boolean {
  * @param ciphertext - The raw 64-bit encrypted integer.
  * @param aesKey - Full AES encryption key.
  * @param options - Decryption constraints configuration.
- * @returns Plaintext BigInt, or `null` if the sanity check threshold fails.
+ * @returns Plaintext BigInt, or `null` if the value fails the plausibility sanity check.
+ * @throws Error if the AES key is invalid or decryption fails.
  */
 export function decryptCtUint64(
   ciphertext: ctUint,
   aesKey: string,
   options?: DecryptionOptions,
 ): bigint | null {
-  try {
-    if (isZeroValue(ciphertext)) {
-      return 0n;
-    }
-    const normalizedKey = normalizeAesKey(aesKey);
-    const rawDecrypted = decryptUint(ciphertext, normalizedKey);
-    const decrypted = typeof rawDecrypted === 'bigint' ? rawDecrypted : BigInt(rawDecrypted);
-    if (isInsaneDecryptedValue(decrypted, options?.decimals, options?.insaneThresholdBase)) {
-      return null;
-    }
-    return decrypted;
-  } catch (error) {
-    console.error('[decryptCtUint64] failed:', error instanceof Error ? error.message : error);
+  if (isZeroValue(ciphertext)) {
+    return 0n;
+  }
+  const normalizedKey = normalizeAesKey(aesKey);
+  const rawDecrypted = decryptUint(ciphertext, normalizedKey);
+  const decrypted = typeof rawDecrypted === 'bigint' ? rawDecrypted : BigInt(rawDecrypted);
+  if (isInsaneDecryptedValue(decrypted, options?.decimals, options?.insaneThresholdBase)) {
     return null;
   }
+  return decrypted;
 }
 
 /**

@@ -27,8 +27,8 @@ describe('normalizeAesKey', () => {
         expect(normalizeAesKey(AES_KEY)).toBe(AES_KEY)
     })
 
-    test('accepts a 64-char (256-bit) key', () => {
-        expect(normalizeAesKey(AES_KEY_256)).toBe(AES_KEY_256)
+    test('rejects a 64-char (256-bit) key since COTI uses 128-bit AES', () => {
+        expect(() => normalizeAesKey(AES_KEY_256)).toThrow('expected 32 hex characters')
     })
 
     test('throws on non-hexadecimal characters', () => {
@@ -36,7 +36,7 @@ describe('normalizeAesKey', () => {
     })
 
     test('throws on invalid length', () => {
-        expect(() => normalizeAesKey('abcdef')).toThrow('expected 32 or 64 hex characters')
+        expect(() => normalizeAesKey('abcdef')).toThrow('expected 32 hex characters')
     })
 })
 
@@ -123,9 +123,9 @@ describe('decryptCtUint64', () => {
         expect(decryptCtUint64(ciphertext, '0x' + AES_KEY)).toBe(777n)
     })
 
-    test('returns null on an invalid key', () => {
+    test('throws on an invalid key', () => {
         const ciphertext = buildCiphertext(42n)
-        expect(decryptCtUint64(ciphertext, 'xyz')).toBeNull()
+        expect(() => decryptCtUint64(ciphertext, 'xyz')).toThrow()
     })
 
     test('returns null when the value exceeds the sanity threshold', () => {
