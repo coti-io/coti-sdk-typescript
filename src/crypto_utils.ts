@@ -170,16 +170,26 @@ export function sign(message: string, privateKey: string) {
     return new Uint8Array([...getBytes(sig.r), ...getBytes(sig.s), ...getBytes(`0x0${sig.v - 27}`)])
 }
 
+// Computes the COTI IT message hash shared by signInputText and buildItSignature.
+function buildItMessageHash(
+    signerAddress: string,
+    contractAddress: string,
+    functionSelector: string,
+    ct: bigint
+): string {
+    return solidityPackedKeccak256(
+        ["address", "address", "bytes4", "uint256"],
+        [signerAddress, contractAddress, functionSelector, ct]
+    )
+}
+
 export function signInputText(
     sender: { wallet: BaseWallet; userKey: string },
     contractAddress: string,
     functionSelector: string,
     ct: bigint
 ) {
-    const message = solidityPackedKeccak256(
-        ["address", "address", "bytes4", "uint256"],
-        [sender.wallet.address, contractAddress, functionSelector, ct]
-    )
+    const message = buildItMessageHash(sender.wallet.address, contractAddress, functionSelector, ct)
 
     return sign(message, sender.wallet.privateKey);
 }
@@ -676,9 +686,6 @@ export function buildItSignature(
   ciphertext: bigint,
   privateKey: string,
 ): string {
-  const digest = solidityPackedKeccak256(
-    ['address', 'address', 'bytes4', 'uint256'],
-    [signerAddress, contractAddress, functionSelector, ciphertext],
-  );
+  const digest = buildItMessageHash(signerAddress, contractAddress, functionSelector, ciphertext);
   return hexlify(sign(digest, privateKey));
 }
