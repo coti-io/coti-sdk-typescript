@@ -228,7 +228,7 @@ describe('Unit: Error Handling', () => {
     })
 
     describe('decryptUint error cases', () => {
-        test('produces incorrect result when user key has wrong length', () => {
+        test('throws when user key has wrong length', () => {
             const { ciphertext } = prepareIT(
                 12345n,
                 createTestSender(),
@@ -236,9 +236,8 @@ describe('Unit: Error Handling', () => {
                 TEST_CONSTANTS.FUNCTION_SELECTOR
             )
             const wrongKey = '1234567890123456789012345678901' // 31 chars
-            // Function doesn't throw, but produces incorrect decryption
-            const decrypted = decryptUint(ciphertext, wrongKey)
-            expect(decrypted).not.toBe(12345n)
+            // decryptUint now validates the key and rejects non-128-bit keys
+            expect(() => decryptUint(ciphertext, wrongKey)).toThrow('expected 32 hex characters')
         })
 
         test('produces incorrect result when user key has invalid hex', () => {
@@ -285,7 +284,7 @@ describe('Unit: Error Handling', () => {
     })
 
     describe('decryptString error cases', () => {
-        test('produces incorrect result when user key has wrong length', () => {
+        test('throws when user key has wrong length', () => {
             const { ciphertext } = buildStringInputText(
                 'Hello',
                 createTestSender(),
@@ -293,9 +292,8 @@ describe('Unit: Error Handling', () => {
                 TEST_CONSTANTS.FUNCTION_SELECTOR
             )
             const wrongKey = '1234567890123456789012345678901' // 31 chars
-            // Function doesn't throw, but produces incorrect decryption
-            const decrypted = decryptString(ciphertext, wrongKey)
-            expect(decrypted).not.toBe('Hello')
+            // decryptString delegates to decryptUint, which now validates the key
+            expect(() => decryptString(ciphertext, wrongKey)).toThrow('expected 32 hex characters')
         })
 
         test('handles empty ciphertext array', () => {

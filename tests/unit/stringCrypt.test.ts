@@ -14,7 +14,9 @@ describe("String Encryption and Decryption (decryptString)", () => {
 
     beforeAll(() => {
         wallet = ethers.Wallet.createRandom();
-        userKey = generateRandomAesKeySizeNumber();
+        // generateRandomAesKeySizeNumber() returns 16 raw bytes (a binary string).
+        // The SDK's documented AES key format is 32 hex chars, so convert it.
+        userKey = Buffer.from(generateRandomAesKeySizeNumber(), "binary").toString("hex");
         sender = { wallet, userKey };
     });
 

@@ -264,6 +264,16 @@ export function buildStringInputText(
 }
 
 export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
+    // A zero ciphertext represents uninitialized/empty storage, which decrypts
+    // to plaintext 0. Short-circuit before touching the key so callers can read
+    // empty values without a valid key (and to avoid returning AES garbage).
+    if (ciphertext === 0n) {
+        return 0n
+    }
+
+    // Validate and normalize the key (strips "0x", lowercases, enforces 128-bit).
+    const normalizedKey = normalizeAesKey(userKey)
+
     // Convert ciphertext to Uint8Array
     let ctArray = new Uint8Array()
 
@@ -279,7 +289,7 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
     const cipher = ctArray.subarray(0, BLOCK_SIZE)
     const r = ctArray.subarray(BLOCK_SIZE)
 
-    const userKeyBytes = encodeKey(userKey)
+    const userKeyBytes = encodeKey(normalizedKey)
 
     // Decrypt the cipher
     const decryptedMessage = decrypt(userKeyBytes, r, cipher)
@@ -558,14 +568,19 @@ export function prepareIT256(
 // ------------- Wallet Plugin Additions -------------
 
 /**
- * Strips the "0x" prefix and lowercases an AES key.
- * COTI uses a 128-bit AES key, so only 32-character hex strings are accepted.
+ * Validates and normalizes an AES key: ensures it is present, strips the "0x"
+ * prefix, and lowercases it. COTI uses a 128-bit AES key, so only 32-character
+ * hex strings are accepted.
  *
  * @param aesKey - The AES key, optionally prefixed with "0x".
  * @returns The normalized lowercase hex string.
- * @throws Error if the key contains non-hex characters or is not 32 hex characters.
+ * @throws Error if the key is empty/null/undefined, contains non-hex characters, or is not 32 hex characters.
  */
-export function normalizeAesKey(aesKey: string): string {
+export function normalizeAesKey(aesKey: string | null | undefined): string {
+    if (!aesKey) {
+        throw new Error("AES key is required")
+    }
+
     const trimmed = aesKey.startsWith("0x") ? aesKey.slice(2) : aesKey
     const lowered = trimmed.toLowerCase()
 
@@ -579,107 +594,6 @@ export function normalizeAesKey(aesKey: string): string {
 
     return lowered
 }
-
-/**
- * Ensures an AES key is provided, then normalizes it.
- *
- * @param aesKey - The AES key to validate.
- * @returns The normalized lowercase hex string.
- * @throws Error if the key is empty, null, undefined, or invalid.
- */
-export function validateAesKey(aesKey: string | null | undefined): string {
-    if (!aesKey) {
-        throw new Error("AES key is required")
-    }
-
-    return normalizeAesKey(aesKey)
-}
-
-export interface DecryptionOptions {
-    decimals?: number
-    insaneThresholdBase?: bigint
-}
-
-const DEFAULT_INSANE_THRESHOLD_BASE = 1_000_000_000_000n
-
-// Validates token decimals, defaulting to 18 when not provided.
-// Throws on clearly-invalid input (non-integer, negative, or out of the 0-36 range).
-function normalizeDecimals(decimals?: number | null): number {
-    if (decimals === undefined || decimals === null) {
-        return 18
-    }
-
-    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) {
-        throw new Error(`Invalid decimals: expected an integer between 0 and 36, got ${decimals}`)
-    }
-
-    return decimals
-}
-
-/**
- * Validation-only heuristic: checks whether a decrypted value exceeds a plausible
- * balance threshold. This is NOT a cryptographic guarantee — it is a best-effort
- * sanity check so that a balance decrypted with the wrong AES key is flagged rather
- * than rendered as an implausibly large number. Intended for balance validation in
- * consuming applications; it does not affect correctness of decryption itself.
- *
- * The threshold is `thresholdBase * 10^decimals`. Tune `thresholdBase`/`decimals`
- * per token if the defaults are too strict for a given use case.
- *
- * @param value - The decrypted value to validate.
- * @param decimals - Token decimal places (clamped to 0-36, default 18).
- * @param thresholdBase - Base multiplier for the threshold (default 1e12).
- * @returns True if the value exceeds the plausibility threshold (i.e. likely invalid).
- */
-export function isInsaneDecryptedValue(
-    value: bigint,
-    decimals?: number,
-    thresholdBase?: bigint
-): boolean {
-    const safeDecimals = normalizeDecimals(decimals)
-    const base = thresholdBase ?? DEFAULT_INSANE_THRESHOLD_BASE
-    const threshold = base * 10n ** BigInt(safeDecimals)
-
-    return value > threshold
-}
-
-// Returns true when the ciphertext represents a zero value.
-function isZeroValue(value: ctUint): boolean {
-    return value === 0n
-}
-
-/**
- * High-level wrapper over `decryptUint` for 64-bit ctUint ciphertexts.
- * - Short-circuits a zero ciphertext to `0n` without touching the key.
- * - Applies a plausibility sanity check (`isInsaneDecryptedValue`).
- *
- * @param ciphertext - The encrypted 64-bit value.
- * @param aesKey - The AES key (32 hex chars, optionally "0x"-prefixed).
- * @param options - Optional decimals and threshold configuration.
- * @returns The decrypted value, or `null` if it fails the plausibility check.
- * @throws Error if the AES key is invalid or decryption fails.
- */
-// export function decryptCtUint64(
-//     ciphertext: ctUint,
-//     aesKey: string,
-//     options?: DecryptionOptions
-// ): bigint | null {
-//     if (isZeroValue(ciphertext)) {
-//         return 0n
-//     }
-
-//     const normalizedKey = normalizeAesKey(aesKey)
-//     const rawDecrypted = decryptUint(ciphertext, normalizedKey)
-//     const decrypted = typeof rawDecrypted === "bigint" ? rawDecrypted : BigInt(rawDecrypted)
-
-//     if (isInsaneDecryptedValue(decrypted, options?.decimals, options?.insaneThresholdBase)) {
-//         return null
-//     }
-
-//     return decrypted
-// }
-
-/// PERCIVAL TO REMOVE THE ABOVE AND DO recompute of the ciphertext blocked with stored r
 
 /**
  * Builds a COTI input-text (IT) signature over (signer, contract, selector, ciphertext).
