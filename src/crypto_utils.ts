@@ -263,6 +263,19 @@ export function buildStringInputText(
     return inputText
 }
 
+/**
+ * Decrypts a 64-bit ctUint ciphertext using the user's AES key.
+ *
+ * - A zero ciphertext is short-circuited to `0n` without touching the key,
+ *   since it represents uninitialized/empty on-chain storage.
+ * - Key validation is performed by `encodeKey` (strips "0x", lowercases,
+ *   enforces 128-bit hex). Invalid keys throw rather than producing garbage.
+ *
+ * @param ciphertext - The encrypted 64-bit value (bigint).
+ * @param userKey - The AES key (32 hex chars, optionally "0x"-prefixed).
+ * @returns The decrypted plaintext as a bigint.
+ * @throws Error if the key is invalid (null, wrong length, non-hex).
+ */
 export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
     // A zero ciphertext represents uninitialized/empty storage, which decrypts
     // to plaintext 0. Short-circuit before touching the key so callers can read
