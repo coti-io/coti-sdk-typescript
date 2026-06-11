@@ -271,9 +271,6 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
         return 0n
     }
 
-    // Validate and normalize the key (strips "0x", lowercases, enforces 128-bit).
-    const normalizedKey = normalizeAesKey(userKey)
-
     // Convert ciphertext to Uint8Array
     let ctArray = new Uint8Array()
 
@@ -289,7 +286,8 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
     const cipher = ctArray.subarray(0, BLOCK_SIZE)
     const r = ctArray.subarray(BLOCK_SIZE)
 
-    const userKeyBytes = encodeKey(normalizedKey)
+    // encodeKey validates and normalizes the key (strips "0x", enforces 128-bit)
+    const userKeyBytes = encodeKey(userKey)
 
     // Decrypt the cipher
     const decryptedMessage = decrypt(userKeyBytes, r, cipher)
@@ -380,10 +378,14 @@ export function encodeString(str: string): Uint8Array {
 }
 
 export function encodeKey(userKey: string): Uint8Array {
+    // Validate and normalize the key (strips "0x", lowercases, enforces 128-bit)
+    // so that every encrypt/decrypt path rejects malformed keys consistently
+    // instead of silently producing NaN/garbage bytes.
+    const normalizedKey = normalizeAesKey(userKey)
     const keyBytes = new Uint8Array(16)
 
     for (let i = 0; i < 32; i += 2) {
-        keyBytes[i / 2] = Number.parseInt(userKey.slice(i, i + 2), HEX_BASE)
+        keyBytes[i / 2] = Number.parseInt(normalizedKey.slice(i, i + 2), HEX_BASE)
     }
 
     return keyBytes
