@@ -105,31 +105,18 @@ describe('Unit: Error Handling', () => {
     })
 
     describe('encodeKey error cases', () => {
-        test('produces incorrect result when user key length is not 32 hex characters', () => {
+        test('throws when user key length is not 32 hex characters', () => {
             const shortKey = '1234567890123456789012345678901' // 31 chars
-            const result = encodeKey(shortKey)
-            // Function doesn't throw, but produces incorrect result (last byte is incomplete)
-            expect(result).toBeInstanceOf(Uint8Array)
-            expect(result.length).toBe(16)
+            expect(() => encodeKey(shortKey)).toThrow('expected 32 hex characters')
         })
 
-        test('produces incorrect result when user key has invalid hex characters', () => {
+        test('throws when user key has invalid hex characters', () => {
             const invalidKey = '1234567890123456789012345678901g' // 'g' is invalid hex
-            const result = encodeKey(invalidKey)
-            // Function doesn't throw, but produces incorrect values
-            // parseInt('1g', 16) returns 1 (stops at invalid char), so result[15] = 1
-            expect(result).toBeInstanceOf(Uint8Array)
-            expect(result.length).toBe(16)
-            // The function processes what it can, invalid hex is handled gracefully
-            expect(result[15]).toBe(1) // '1g' parses as '1'
+            expect(() => encodeKey(invalidKey)).toThrow('non-hexadecimal')
         })
 
-        test('produces zero-filled array when user key is empty', () => {
-            const result = encodeKey('')
-            // Function doesn't throw, but produces zeros
-            expect(result).toBeInstanceOf(Uint8Array)
-            expect(result.length).toBe(16)
-            expect(result.every(b => b === 0)).toBe(true)
+        test('throws when user key is empty', () => {
+            expect(() => encodeKey('')).toThrow('AES key is required')
         })
     })
 
@@ -228,7 +215,7 @@ describe('Unit: Error Handling', () => {
     })
 
     describe('decryptUint error cases', () => {
-        test('produces incorrect result when user key has wrong length', () => {
+        test('throws when user key has wrong length', () => {
             const { ciphertext } = prepareIT(
                 12345n,
                 createTestSender(),
@@ -236,9 +223,8 @@ describe('Unit: Error Handling', () => {
                 TEST_CONSTANTS.FUNCTION_SELECTOR
             )
             const wrongKey = '1234567890123456789012345678901' // 31 chars
-            // Function doesn't throw, but produces incorrect decryption
-            const decrypted = decryptUint(ciphertext, wrongKey)
-            expect(decrypted).not.toBe(12345n)
+            // decryptUint now validates the key and rejects non-128-bit keys
+            expect(() => decryptUint(ciphertext, wrongKey)).toThrow('expected 32 hex characters')
         })
 
         test('produces incorrect result when user key has invalid hex', () => {
@@ -261,7 +247,7 @@ describe('Unit: Error Handling', () => {
     })
 
     describe('decryptUint256 error cases', () => {
-        test('produces incorrect result when user key has wrong length', () => {
+        test('throws when user key has wrong length', () => {
             const { ciphertext } = prepareIT256(
                 2n ** 200n,
                 createTestSender(),
@@ -269,9 +255,8 @@ describe('Unit: Error Handling', () => {
                 TEST_CONSTANTS.FUNCTION_SELECTOR
             )
             const wrongKey = '1234567890123456789012345678901' // 31 chars
-            // Function doesn't throw, but produces incorrect decryption
-            const decrypted = decryptUint256(ciphertext, wrongKey)
-            expect(decrypted).not.toBe(2n ** 200n)
+            // decryptUint256 delegates to encodeKey, which now validates the key
+            expect(() => decryptUint256(ciphertext, wrongKey)).toThrow('expected 32 hex characters')
         })
 
         test('produces incorrect result when ciphertext structure is invalid', () => {
@@ -285,7 +270,7 @@ describe('Unit: Error Handling', () => {
     })
 
     describe('decryptString error cases', () => {
-        test('produces incorrect result when user key has wrong length', () => {
+        test('throws when user key has wrong length', () => {
             const { ciphertext } = buildStringInputText(
                 'Hello',
                 createTestSender(),
@@ -293,9 +278,8 @@ describe('Unit: Error Handling', () => {
                 TEST_CONSTANTS.FUNCTION_SELECTOR
             )
             const wrongKey = '1234567890123456789012345678901' // 31 chars
-            // Function doesn't throw, but produces incorrect decryption
-            const decrypted = decryptString(ciphertext, wrongKey)
-            expect(decrypted).not.toBe('Hello')
+            // decryptString delegates to decryptUint, which now validates the key
+            expect(() => decryptString(ciphertext, wrongKey)).toThrow('expected 32 hex characters')
         })
 
         test('handles empty ciphertext array', () => {

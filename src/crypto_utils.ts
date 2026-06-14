@@ -1,5 +1,5 @@
 import forge from 'node-forge'
-import { BaseWallet, getBytes, SigningKey, solidityPackedKeccak256 } from "ethers"
+import { BaseWallet, getBytes, SigningKey, solidityPackedKeccak256, hexlify, Wallet } from "ethers"
 import { ctString, ctUint, ctUint256, itString, itUint, itUint256 } from './types';
 
 const BLOCK_SIZE = 16 // AES block size in bytes
@@ -170,16 +170,26 @@ export function sign(message: string, privateKey: string) {
     return new Uint8Array([...getBytes(sig.r), ...getBytes(sig.s), ...getBytes(`0x0${sig.v - 27}`)])
 }
 
+// Computes the COTI IT message hash shared by signInputText and buildItSignature.
+function buildItMessageHash(
+    signerAddress: string,
+    contractAddress: string,
+    functionSelector: string,
+    ct: bigint
+): string {
+    return solidityPackedKeccak256(
+        ["address", "address", "bytes4", "uint256"],
+        [signerAddress, contractAddress, functionSelector, ct]
+    )
+}
+
 export function signInputText(
     sender: { wallet: BaseWallet; userKey: string },
     contractAddress: string,
     functionSelector: string,
     ct: bigint
 ) {
-    const message = solidityPackedKeccak256(
-        ["address", "address", "bytes4", "uint256"],
-        [sender.wallet.address, contractAddress, functionSelector, ct]
-    )
+    const message = buildItMessageHash(sender.wallet.address, contractAddress, functionSelector, ct)
 
     return sign(message, sender.wallet.privateKey);
 }
@@ -253,7 +263,30 @@ export function buildStringInputText(
     return inputText
 }
 
+/**
+ * Decrypts a 64-bit ctUint ciphertext using the user's AES key.
+ *
+ * - A zero ciphertext is short-circuited to `0n` without validating the key,
+ *   since it represents uninitialized/empty on-chain storage. This allows DApps
+ *   to read empty balances before the user has configured their AES key.
+ *   Note: this means `decryptUint(0n, invalidKey)` returns `0n` without throwing.
+ * - For non-zero ciphertexts, key validation is performed by `encodeKey`
+ *   (strips "0x", lowercases, enforces 128-bit hex). Invalid keys throw
+ *   rather than producing garbage.
+ *
+ * @param ciphertext - The encrypted 64-bit value (bigint).
+ * @param userKey - The AES key (32 hex chars, optionally "0x"-prefixed).
+ * @returns The decrypted plaintext as a bigint.
+ * @throws Error if the key is invalid (null, wrong length, non-hex) and ciphertext is non-zero.
+ */
 export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
+    // A zero ciphertext represents uninitialized/empty storage, which decrypts
+    // to plaintext 0. Short-circuit before touching the key so callers can read
+    // empty values without a valid key (and to avoid returning AES garbage).
+    if (ciphertext === 0n) {
+        return 0n
+    }
+
     // Convert ciphertext to Uint8Array
     let ctArray = new Uint8Array()
 
@@ -269,6 +302,7 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
     const cipher = ctArray.subarray(0, BLOCK_SIZE)
     const r = ctArray.subarray(BLOCK_SIZE)
 
+    // encodeKey validates and normalizes the key (strips "0x", enforces 128-bit)
     const userKeyBytes = encodeKey(userKey)
 
     // Decrypt the cipher
@@ -360,10 +394,14 @@ export function encodeString(str: string): Uint8Array {
 }
 
 export function encodeKey(userKey: string): Uint8Array {
+    // Validate and normalize the key (strips "0x", lowercases, enforces 128-bit)
+    // so that every encrypt/decrypt path rejects malformed keys consistently
+    // instead of silently producing NaN/garbage bytes.
+    const normalizedKey = normalizeAesKey(userKey)
     const keyBytes = new Uint8Array(16)
 
     for (let i = 0; i < 32; i += 2) {
-        keyBytes[i / 2] = Number.parseInt(userKey.slice(i, i + 2), HEX_BASE)
+        keyBytes[i / 2] = Number.parseInt(normalizedKey.slice(i, i + 2), HEX_BASE)
     }
 
     return keyBytes
@@ -544,4 +582,59 @@ export function prepareIT256(
         },
         signature
     }
+}
+// ------------- Wallet Plugin Additions -------------
+
+/**
+ * Validates and normalizes an AES key: ensures it is present, strips the "0x"
+ * prefix, and lowercases it. COTI uses a 128-bit AES key, so only 32-character
+ * hex strings are accepted.
+ *
+ * @param aesKey - The AES key, optionally prefixed with "0x".
+ * @returns The normalized lowercase hex string.
+ * @throws Error if the key is empty/null/undefined, contains non-hex characters, or is not 32 hex characters.
+ */
+export function normalizeAesKey(aesKey: string | null | undefined): string {
+    if (!aesKey) {
+        throw new Error("AES key is required")
+    }
+
+    const trimmed = aesKey.startsWith("0x") ? aesKey.slice(2) : aesKey
+    const lowered = trimmed.toLowerCase()
+
+    if (!/^[0-9a-f]+$/.test(lowered)) {
+        throw new Error("Invalid AES key: contains non-hexadecimal characters")
+    }
+
+    if (lowered.length !== 32) {
+        throw new Error(`Invalid AES key: expected 32 hex characters (128-bit), got ${lowered.length}`)
+    }
+
+    return lowered
+}
+
+/**
+ * Builds a COTI input-text (IT) signature over (signer, contract, selector, ciphertext).
+ *
+ * @param signerAddress - Address of the signer; must match the address derived from privateKey.
+ * @param contractAddress - Target contract address.
+ * @param functionSelector - 4-byte function selector (e.g. "0x11223344").
+ * @param ciphertext - The encrypted value being signed.
+ * @param privateKey - Signer's private key.
+ * @returns The 65-byte signature as a hex string.
+ * @throws Error if signerAddress does not match the address derived from privateKey.
+ */
+export function buildItSignature(
+    signerAddress: string,
+    contractAddress: string,
+    functionSelector: string,
+    ciphertext: bigint,
+    privateKey: string
+): string {
+    const wallet = new Wallet(privateKey);
+    if ( wallet.address.toLowerCase() !== signerAddress.toLowerCase()) {
+        throw new Error("Invalid signer: signerAddress does not match the address derived from privateKey");
+    }
+    let signature = signInputText({ wallet, userKey: ''}, contractAddress, functionSelector, ciphertext);
+    return hexlify(signature);
 }

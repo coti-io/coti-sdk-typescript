@@ -30,37 +30,32 @@ function createTestSender() {
 const describeWithEnv = HAS_ENV ? describe : describe.skip
 describeWithEnv('Integration: Input Validation', () => {
     describe('Invalid user key format', () => {
-        test('prepareIT produces incorrect result with user key that is too short', () => {
+        test('prepareIT throws with user key that is too short', () => {
             const sender = {
                 wallet: new Wallet(TEST_CONSTANTS.PRIVATE_KEY),
                 userKey: '1234567890123456789012345678901' // 31 chars instead of 32
             }
-            // Function doesn't throw, but produces incorrect encryption
-            const result = prepareIT(
+            // Encryption now validates the key and rejects non-128-bit keys
+            expect(() => prepareIT(
                 12345n,
                 sender,
                 TEST_CONSTANTS.CONTRACT_ADDRESS,
                 TEST_CONSTANTS.FUNCTION_SELECTOR
-            )
-            expect(result).toHaveProperty('ciphertext')
-            // Decryption with correct key will fail
-            const decrypted = decryptUint(result.ciphertext, TEST_CONSTANTS.USER_KEY)
-            expect(decrypted).not.toBe(12345n)
+            )).toThrow('expected 32 hex characters')
         })
 
-        test('prepareIT produces incorrect result with user key that is too long', () => {
+        test('prepareIT throws with user key that is too long', () => {
             const sender = {
                 wallet: new Wallet(TEST_CONSTANTS.PRIVATE_KEY),
                 userKey: '12345678901234567890123456789012a' // 33 chars instead of 32
             }
-            // Function processes first 32 chars, doesn't throw
-            const result = prepareIT(
+            // Encryption now validates the key and rejects non-128-bit keys
+            expect(() => prepareIT(
                 12345n,
                 sender,
                 TEST_CONSTANTS.CONTRACT_ADDRESS,
                 TEST_CONSTANTS.FUNCTION_SELECTOR
-            )
-            expect(result).toHaveProperty('ciphertext')
+            )).toThrow('expected 32 hex characters')
         })
 
         test('prepareIT produces incorrect result with user key containing invalid hex', () => {
