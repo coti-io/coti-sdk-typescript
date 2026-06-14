@@ -162,13 +162,13 @@ jobs:
       - name: Download test report artifact
         uses: actions/download-artifact@v5
         with:
-          pattern: test-results-20.x
+          pattern: test-results-24
           path: report-artifacts
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: report-artifacts/test-results-20.x/test-report
+          path: report-artifacts/test-results-24/test-report
 
       - name: Deploy to GitHub Pages
         id: deployment
@@ -207,6 +207,9 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+      id-token: write
     
     steps:
       - name: Checkout code
@@ -236,7 +239,8 @@ jobs:
           node-version: '24'
           registry-url: https://registry.npmjs.org/
           scope: '@coti-io'
-          
+          package-manager-cache: false
+      
       - name: Install dependencies
         run: npm ci
       
