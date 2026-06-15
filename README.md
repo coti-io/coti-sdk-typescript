@@ -22,7 +22,7 @@ npm install
 ```
 
 ## Testing
-
+[![COTI Website](https://img.shields.io/badge/TESTING%20REPORT-4CAF50?style=for-the-badge)](https://coti-io.github.io/coti-sdk-typescript/report.html)
 ```bash
 npm test
 ```
