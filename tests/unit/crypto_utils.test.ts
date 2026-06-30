@@ -96,7 +96,7 @@ function testBuildStringInputText(plaintext: string, description: string, assert
             assertions(result)
         } else {
             expect(result.ciphertext.value.length).toBeGreaterThan(0)
-            expect(result.signature.length).toBe(result.ciphertext.value.length)
+            expect(result.signature).toHaveLength(result.ciphertext.value.length)
         }
     })
 }
@@ -175,7 +175,7 @@ describe('crypto_utils', () => {
         const S = "🚀" // U+1F680 (128640)
         // codePointAt(0) is 128640. UInt8Array(1) will store [128640 % 256] = [128]
         const encoded = encodeString(S)
-        expect(encoded.length).toBe(1)
+        expect(encoded).toHaveLength(1)
         expect(encoded[0]).toBe(128) // Known limitation: overflows for multi-byte characters (128640 % 256 = 128)
     })
 
@@ -372,7 +372,7 @@ describe('crypto_utils', () => {
 
         const signature = sign(MESSAGE_HASH, PRIVATE_KEY)
 
-        expect(signature.length).toBe(65)
+        expect(signature).toHaveLength(65)
 
         const r = hexlify(signature.slice(0, 32))
         const s = hexlify(signature.slice(32, 64))
@@ -389,7 +389,7 @@ describe('crypto_utils', () => {
         const signature = sign(MESSAGE, PRIVATE_KEY)
 
         expect(signature).toBeInstanceOf(Uint8Array)
-        expect(signature.length).toBe(65) // EIP-191 signature length
+        expect(signature).toHaveLength(65) // EIP-191 signature length
         expect(signature[64]).toBeLessThan(2) // v should be 0 or 1 (standardized) or 27/28
     })
 
@@ -429,7 +429,7 @@ describe('crypto_utils', () => {
         )
 
         expect(signature).toBeInstanceOf(Uint8Array)
-        expect(signature.length).toBe(65)
+        expect(signature).toHaveLength(65)
     })
 
     describe('encrypt', () => {
@@ -497,7 +497,7 @@ describe('crypto_utils', () => {
             const decrypted = decrypt(AES_KEY, R1_RESULT, CIPHERTEXT_1, R2_RESULT, CIPHERTEXT_2)
 
             // Should return concatenated plaintext (32 bytes total)
-            expect(decrypted.length).toBe(32)
+            expect(decrypted).toHaveLength(32)
             expect(decrypted.subarray(0, 16)).toEqual(PLAINTEXT_1)
             expect(decrypted.subarray(16, 32)).toEqual(PLAINTEXT_2)
         })
@@ -610,30 +610,30 @@ describe('crypto_utils', () => {
         })
 
         testBuildStringInputText('Hi', 'short string (less than 8 bytes)', (result) => {
-            expect(result.ciphertext.value.length).toBe(1)
-            expect(result.signature.length).toBe(1)
+            expect(result.ciphertext.value).toHaveLength(1)
+            expect(result.signature).toHaveLength(1)
             expect(typeof result.ciphertext.value[0]).toBe('bigint')
             expect(result.signature[0]).toBeInstanceOf(Uint8Array)
             expect(result.signature[0].length).toBeGreaterThan(0)
         })
 
         testBuildStringInputText('12345678', 'exactly 8 bytes', (result) => {
-            expect(result.ciphertext.value.length).toBe(1)
-            expect(result.signature.length).toBe(1)
+            expect(result.ciphertext.value).toHaveLength(1)
+            expect(result.signature).toHaveLength(1)
             expect(result.ciphertext.value[0]).toBeGreaterThan(0n)
         })
 
         testBuildStringInputText('123456789', '9 bytes (2 chunks)', (result) => {
-            expect(result.ciphertext.value.length).toBe(2)
-            expect(result.signature.length).toBe(2)
+            expect(result.ciphertext.value).toHaveLength(2)
+            expect(result.signature).toHaveLength(2)
             expect(result.ciphertext.value[0]).toBeGreaterThan(0n)
             expect(result.ciphertext.value[1]).toBeGreaterThan(0n)
         })
 
         testBuildStringInputText('This is a longer string that will be split into multiple 8-byte chunks for encryption.', 'long string (multiple chunks)', (result) => {
             const expectedChunks = Math.ceil(new TextEncoder().encode('This is a longer string that will be split into multiple 8-byte chunks for encryption.').length / 8)
-            expect(result.ciphertext.value.length).toBe(expectedChunks)
-            expect(result.signature.length).toBe(expectedChunks)
+            expect(result.ciphertext.value).toHaveLength(expectedChunks)
+            expect(result.signature).toHaveLength(expectedChunks)
             result.ciphertext.value.forEach((ct: bigint) => {
                 expect(typeof ct).toBe('bigint')
                 expect(ct).toBeGreaterThan(0n)
@@ -645,8 +645,8 @@ describe('crypto_utils', () => {
         })
 
         testBuildStringInputText('', 'empty string', (result) => {
-            expect(result.ciphertext.value.length).toBe(0)
-            expect(result.signature.length).toBe(0)
+            expect(result.ciphertext.value).toHaveLength(0)
+            expect(result.signature).toHaveLength(0)
             expect(Array.isArray(result.ciphertext.value)).toBe(true)
             expect(Array.isArray(result.signature)).toBe(true)
         })
@@ -685,7 +685,7 @@ describe('crypto_utils', () => {
             expect(result.ciphertext).toHaveProperty('value')
             expect(Array.isArray(result.ciphertext.value)).toBe(true)
             expect(Array.isArray(result.signature)).toBe(true)
-            expect(result.ciphertext.value.length).toBe(result.signature.length)
+            expect(result.ciphertext.value).toHaveLength(result.signature.length)
             expect(result.ciphertext.value.length).toBeGreaterThan(0)
         })
 
@@ -695,13 +695,13 @@ describe('crypto_utils', () => {
         })
 
         testBuildStringInputText('1234567890123456', 'exactly 16 bytes (2 full chunks)', (result) => {
-            expect(result.ciphertext.value.length).toBe(2)
-            expect(result.signature.length).toBe(2)
+            expect(result.ciphertext.value).toHaveLength(2)
+            expect(result.signature).toHaveLength(2)
         })
 
         testBuildStringInputText('123456789012345678901234', 'exactly 24 bytes (3 full chunks)', (result) => {
-            expect(result.ciphertext.value.length).toBe(3)
-            expect(result.signature.length).toBe(3)
+            expect(result.ciphertext.value).toHaveLength(3)
+            expect(result.signature).toHaveLength(3)
         })
 
         // UTF-8 Multi-byte and RTL characters
@@ -712,22 +712,22 @@ describe('crypto_utils', () => {
 
         // Exact chunking boundaries
         testBuildStringInputText('1234567', 'boundary: 7 bytes (1 chunk)', (result) => {
-            expect(result.ciphertext.value.length).toBe(1)
+            expect(result.ciphertext.value).toHaveLength(1)
         })
         testBuildStringInputText('12345678', 'boundary: 8 bytes (1 chunk)', (result) => {
-            expect(result.ciphertext.value.length).toBe(1)
+            expect(result.ciphertext.value).toHaveLength(1)
         })
         testBuildStringInputText('123456789', 'boundary: 9 bytes (2 chunks)', (result) => {
-            expect(result.ciphertext.value.length).toBe(2)
+            expect(result.ciphertext.value).toHaveLength(2)
         })
         testBuildStringInputText('123456789012345', 'boundary: 15 bytes (2 chunks)', (result) => {
-            expect(result.ciphertext.value.length).toBe(2)
+            expect(result.ciphertext.value).toHaveLength(2)
         })
         testBuildStringInputText('1234567890123456', 'boundary: 16 bytes (2 chunks)', (result) => {
-            expect(result.ciphertext.value.length).toBe(2)
+            expect(result.ciphertext.value).toHaveLength(2)
         })
         testBuildStringInputText('12345678901234567', 'boundary: 17 bytes (3 chunks)', (result) => {
-            expect(result.ciphertext.value.length).toBe(3)
+            expect(result.ciphertext.value).toHaveLength(3)
         })
     })
 
@@ -1083,7 +1083,7 @@ describe('crypto_utils', () => {
 
             // Verify the recovered key is a 32-character hex string (16 bytes)
             expect(typeof recoveredKey).toBe('string')
-            expect(recoveredKey.length).toBe(32)
+            expect(recoveredKey).toHaveLength(32)
             expect(/^[0-9a-f]{32}$/i.test(recoveredKey)).toBe(true)
         })
 
@@ -1218,7 +1218,7 @@ describe('crypto_utils', () => {
             expect(typeof randomKey).toBe('string')
 
             // Verify it's exactly 16 bytes (16 characters since it's a string of bytes)
-            expect(randomKey.length).toBe(16)
+            expect(randomKey).toHaveLength(16)
         })
 
         test('generateRandomAesKeySizeNumber - generates different values on each call', () => {
@@ -1230,8 +1230,8 @@ describe('crypto_utils', () => {
             // In production, this would generate different random values.
             // We verify the function works correctly regardless.
             expect(key1).toBe(key2) // Mocked behavior - both return "ABCDEFGHIJKLMNOP"
-            expect(key1.length).toBe(16)
-            expect(key2.length).toBe(16)
+            expect(key1).toHaveLength(16)
+            expect(key2).toHaveLength(16)
         })
 
         test('generateRandomAesKeySizeNumber - can be used as AES key material', () => {
@@ -1239,7 +1239,7 @@ describe('crypto_utils', () => {
 
             // Verify it can be encoded as a key (though it's already in string format)
             // The function returns raw bytes as a string, which can be used for key generation
-            expect(randomKey.length).toBe(16)
+            expect(randomKey).toHaveLength(16)
 
             // Each character should be a valid byte (though as string representation)
             // The actual implementation uses forge.random.getBytesSync which returns binary string

@@ -50,14 +50,14 @@ describe('Integration: Format Compatibility', () => {
 
             // Verify signature format is compatible with contract bytes parameter
             expect(signature).toBeInstanceOf(Uint8Array)
-            expect(signature.length).toBe(65)
+            expect(signature).toHaveLength(65)
 
             // Can be converted to hex string for contract calls
             const sigArray = signature instanceof Uint8Array ? signature : new Uint8Array()
             const hexString = '0x' + Array.from(sigArray)
                 .map(b => b.toString(16).padStart(2, '0'))
                 .join('')
-            expect(hexString.length).toBe(132) // 0x + 65 bytes * 2 hex chars
+            expect(hexString).toHaveLength(132) // 0x + 65 bytes * 2 hex chars
         })
     })
 
@@ -164,7 +164,7 @@ describe('Integration: Format Compatibility', () => {
                 TEST_CONSTANTS.FUNCTION_SELECTOR
             )
 
-            expect(signature.length).toBe(ciphertext.value.length)
+            expect(signature).toHaveLength(ciphertext.value.length)
         })
 
         test('format is compatible with contract array parameters', () => {
@@ -187,7 +187,7 @@ describe('Integration: Format Compatibility', () => {
 
             expect(Array.isArray(ciphertextArray)).toBe(true)
             expect(Array.isArray(signatureArray)).toBe(true)
-            expect(ciphertextArray.length).toBe(signatureArray.length)
+            expect(ciphertextArray).toHaveLength(signatureArray.length)
         })
     })
 
@@ -223,7 +223,7 @@ describe('Integration: Format Compatibility', () => {
 
             // Verify selector is 4 bytes (0x + 8 hex chars)
             expect(validSelector.startsWith('0x')).toBe(true)
-            expect(validSelector.length).toBe(10) // 0x + 8 hex characters
+            expect(validSelector).toHaveLength(10) // 0x + 8 hex characters
         })
     })
 
@@ -258,7 +258,7 @@ describe('Integration: Format Compatibility', () => {
                 .map(b => b.toString(16).padStart(2, '0'))
                 .join('')
             expect(hexString.startsWith('0x')).toBe(true)
-            expect(hexString.length).toBe(132) // 0x + 65 bytes * 2
+            expect(hexString).toHaveLength(132) // 0x + 65 bytes * 2
         })
 
         test('ciphertextHigh and ciphertextLow can be converted to hex strings', () => {
