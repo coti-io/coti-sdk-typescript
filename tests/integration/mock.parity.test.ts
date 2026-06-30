@@ -1,4 +1,3 @@
-import { Wallet } from 'ethers'
 import {
     encrypt,
     decrypt,
@@ -9,6 +8,7 @@ import {
     prepareIT256,
     decryptUint256
 } from '../../src'
+import { createTestSender, TEST_CONSTANTS } from '../helpers'
 
 /**
  * Mock Parity Tests - TESTS.md Recommendation #5
@@ -21,25 +21,7 @@ import {
  * verifies that both approaches produce ciphertexts that decrypt correctly.
  */
 
-// Load test constants from environment variables
-const TEST_CONSTANTS = {
-    PRIVATE_KEY: process.env.TEST_PRIVATE_KEY || '',
-    USER_KEY: process.env.TEST_USER_KEY || '',
-    CONTRACT_ADDRESS: '0x0000000000000000000000000000000000000001',
-    FUNCTION_SELECTOR: '0x11223344'
-}
-
-const HAS_ENV = !!(TEST_CONSTANTS.PRIVATE_KEY && TEST_CONSTANTS.USER_KEY)
-
-function createTestSender() {
-    return {
-        wallet: new Wallet(TEST_CONSTANTS.PRIVATE_KEY),
-        userKey: TEST_CONSTANTS.USER_KEY
-    }
-}
-
-const describeWithEnv = HAS_ENV ? describe : describe.skip
-describeWithEnv('Integration: Mock vs Real Randomness Parity', () => {
+describe('Integration: Mock vs Real Randomness Parity', () => {
 
     describe('encrypt/decrypt with real randomness', () => {
         test('encrypt produces different ciphertexts on each call (real randomness)', () => {

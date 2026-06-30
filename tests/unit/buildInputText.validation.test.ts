@@ -1,25 +1,8 @@
-import { Wallet } from 'ethers'
 import {
     buildInputText,
     decryptUint
 } from '../../src'
-
-// Load test constants from environment variables
-const TEST_CONSTANTS = {
-    PRIVATE_KEY: process.env.TEST_PRIVATE_KEY || '',
-    USER_KEY: process.env.TEST_USER_KEY || '',
-    CONTRACT_ADDRESS: '0x0000000000000000000000000000000000000001',
-    FUNCTION_SELECTOR: '0x11223344'
-}
-
-const HAS_ENV = !!(TEST_CONSTANTS.PRIVATE_KEY && TEST_CONSTANTS.USER_KEY)
-
-function createTestSender() {
-    return {
-        wallet: new Wallet(TEST_CONSTANTS.PRIVATE_KEY),
-        userKey: TEST_CONSTANTS.USER_KEY
-    }
-}
+import { createTestSender, TEST_CONSTANTS } from '../helpers'
 
 /**
  * Tests for buildInputText's 64-bit plaintext validation.
@@ -27,8 +10,7 @@ function createTestSender() {
  * buildInputText restricts plaintexts to < 2^64, unlike prepareIT which allows up to 128-bit.
  * This is the only uncovered code path (line 194 in crypto_utils.ts).
  */
-const describeWithEnv = HAS_ENV ? describe : describe.skip
-describeWithEnv('Unit: buildInputText 64-bit Validation', () => {
+describe('Unit: buildInputText 64-bit Validation', () => {
     test('throws RangeError when plaintext is exactly 2^64', () => {
         const plaintext = 2n ** 64n // Exactly 64-bit boundary
         expect(() => buildInputText(

@@ -1,31 +1,11 @@
-import { Wallet } from 'ethers'
 import {
     prepareIT,
     prepareIT256,
     buildStringInputText
 } from '../../src'
+import { createTestSender, TEST_CONSTANTS } from '../helpers'
 
-// Load test constants from environment variables
-const TEST_CONSTANTS = {
-    PRIVATE_KEY: process.env.TEST_PRIVATE_KEY || '',
-    USER_KEY: process.env.TEST_USER_KEY || '',
-    // Use hardcoded test values for contract address and function selector
-    // These are just test values and don't need to be in .env
-    CONTRACT_ADDRESS: '0x0000000000000000000000000000000000000001',
-    FUNCTION_SELECTOR: '0x11223344'
-}
-
-const HAS_ENV = !!(TEST_CONSTANTS.PRIVATE_KEY && TEST_CONSTANTS.USER_KEY)
-
-function createTestSender() {
-    return {
-        wallet: new Wallet(TEST_CONSTANTS.PRIVATE_KEY),
-        userKey: TEST_CONSTANTS.USER_KEY
-    }
-}
-
-const describeWithEnv = HAS_ENV ? describe : describe.skip
-describeWithEnv('Integration: Signature Verification', () => {
+describe('Integration: Signature Verification', () => {
     describe('prepareIT signature format', () => {
         test('signature has correct format (65 bytes: r + s + v)', () => {
             const plaintext = 12345n

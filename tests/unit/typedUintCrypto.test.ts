@@ -11,8 +11,10 @@ import {
     isCtUint256Shape,
     isZeroCtUint256,
     normalizeCtPayload,
+    prepareIT,
     prepareIT256
 } from '../../src'
+import { createTestSender, TEST_CONSTANTS } from '../helpers'
 
 jest.mock('node-forge', () => {
     const defaultForge = jest.requireActual('node-forge')
@@ -26,16 +28,9 @@ jest.mock('node-forge', () => {
     }
 })
 
-const AES_KEY = '0123456789abcdef0123456789abcdef'
-const CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000001'
-const FUNCTION_SELECTOR = '0x11223344'
-
-function createTestSender() {
-    return {
-        wallet: Wallet.createRandom(),
-        userKey: AES_KEY
-    }
-}
+const AES_KEY = TEST_CONSTANTS.USER_KEY
+const CONTRACT_ADDRESS = TEST_CONSTANTS.CONTRACT_ADDRESS
+const FUNCTION_SELECTOR = TEST_CONSTANTS.FUNCTION_SELECTOR
 
 describe('typed uint ciphertext helpers', () => {
     beforeEach(() => {
@@ -69,6 +64,20 @@ describe('typed uint ciphertext helpers', () => {
         test('rejects values outside uint64', () => {
             expect(() => encryptUint(2n ** 64n, AES_KEY)).toThrow(RangeError)
             expect(() => encryptUint(-1n, AES_KEY)).toThrow(RangeError)
+        })
+    })
+
+    describe('uint IT builder limits', () => {
+        test('keeps buildInputText at 64 bits and prepareIT at 128 bits', () => {
+            const value = 2n ** 64n
+            const sender = createTestSender()
+
+            expect(() =>
+                buildInputText(value, sender, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+            ).toThrow('Plaintext size must be 64 bits or smaller.')
+
+            const { ciphertext } = prepareIT(value, sender, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+            expect(decryptUint(ciphertext, AES_KEY)).toBe(value)
         })
     })
 
@@ -213,6 +222,30 @@ describe('typed uint ciphertext helpers', () => {
                     )
                 )
             )
+        })
+
+        test('uses the browser-signer payload, not prepareIT256 raw-bytes signing', async () => {
+            const sender = createTestSender()
+            const value = 12345n
+            const signMessage = jest.fn().mockResolvedValue('0x1234')
+            const prepared = prepareIT256(value, sender, CONTRACT_ADDRESS, FUNCTION_SELECTOR)
+
+            await buildItUint256WithSigner({
+                value,
+                aesKey: AES_KEY,
+                signerAddress: sender.wallet.address,
+                contractAddress: CONTRACT_ADDRESS,
+                functionSelector: FUNCTION_SELECTOR,
+                signMessage
+            })
+
+            const signerPayload = signMessage.mock.calls[0][0]
+            const prepareItCiphertextBytes = new Uint8Array([
+                ...getBytes('0x' + prepared.ciphertext.ciphertextHigh.toString(16).padStart(64, '0')),
+                ...getBytes('0x' + prepared.ciphertext.ciphertextLow.toString(16).padStart(64, '0'))
+            ])
+
+            expect(signerPayload).not.toEqual(prepareItCiphertextBytes)
         })
     })
 })
