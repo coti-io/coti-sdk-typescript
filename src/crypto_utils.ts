@@ -1,6 +1,6 @@
 import forge from 'node-forge'
-import { BaseWallet, getBytes, SigningKey, solidityPackedKeccak256, hexlify, Wallet } from "ethers"
-import { ctString, ctUint, ctUint256, itString, itUint, itUint256, SerializableCtUint, SerializableCtUint256 } from './types';
+import { BaseWallet, getBytes, SigningKey, solidityPacked, solidityPackedKeccak256, hexlify, Wallet } from "ethers"
+import { BuildItUint256WithSignerParams, ctString, ctUint, ctUint256, itString, itUint, itUint256, itUint256Signed, SerializableCtUint, SerializableCtUint256 } from './types';
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
@@ -567,11 +567,20 @@ export function encryptUint256(plaintext: bigint, userKey: string): ctUint256 {
     }
 }
 
-function toBigInt(value: string | number | bigint | undefined | null): bigint {
+function toBigInt(value: unknown): bigint {
     if (value === undefined || value === null) {
         throw new Error("Missing bigint value.")
     }
-    return BigInt(value)
+    if (typeof value === 'bigint') {
+        return value
+    }
+    if (typeof value === 'number' || typeof value === 'string') {
+        return BigInt(value)
+    }
+    if (typeof value === 'object' && 'toString' in value && typeof value.toString === 'function') {
+        return BigInt(value.toString())
+    }
+    throw new Error("Invalid bigint value.")
 }
 
 export function normalizeCtPayload(value: SerializableCtUint, type: 'ctUint64'): ctUint;
@@ -597,6 +606,137 @@ export function normalizeCtPayload(
     }
 
     throw new Error("Invalid ctUint256 payload.")
+}
+
+function isZeroValue(value: unknown): boolean {
+    try {
+        return toBigInt(value) === 0n
+    } catch {
+        return false
+    }
+}
+
+function asRecord(value: unknown): Record<string, unknown> & Record<number, unknown> | null {
+    return value && typeof value === 'object'
+        ? value as Record<string, unknown> & Record<number, unknown>
+        : null
+}
+
+export function isCtUint256Shape(value: unknown): boolean {
+    const record = asRecord(value)
+    if (!record) {
+        return false
+    }
+
+    const highObj = asRecord(record.high)
+    const lowObj = asRecord(record.low)
+    const hasNested =
+        highObj?.high !== undefined &&
+        highObj?.low !== undefined &&
+        lowObj?.high !== undefined &&
+        lowObj?.low !== undefined
+    const hasFlat =
+        record.ciphertextHigh !== undefined && record.ciphertextLow !== undefined
+    const hasPositional = record[0] !== undefined && record[1] !== undefined
+
+    return hasNested || hasFlat || hasPositional
+}
+
+export function isZeroCtUint256(ciphertext: unknown): boolean {
+    if (isZeroValue(ciphertext)) {
+        return true
+    }
+
+    const record = asRecord(ciphertext)
+    if (!record) {
+        return false
+    }
+
+    const highObj = asRecord(record.high)
+    const lowObj = asRecord(record.low)
+    if (
+        highObj?.high !== undefined &&
+        highObj?.low !== undefined &&
+        lowObj?.high !== undefined &&
+        lowObj?.low !== undefined
+    ) {
+        return (
+            isZeroValue(highObj.high) &&
+            isZeroValue(highObj.low) &&
+            isZeroValue(lowObj.high) &&
+            isZeroValue(lowObj.low)
+        )
+    }
+
+    const high = record.ciphertextHigh ?? record[0]
+    const low = record.ciphertextLow ?? record[1]
+
+    return high !== undefined && low !== undefined && isZeroValue(high) && isZeroValue(low)
+}
+
+export function decryptCtUint256(ciphertext: unknown, userKey: string): bigint {
+    const record = asRecord(ciphertext)
+    if (!record) {
+        throw new Error("Invalid ctUint256 payload.")
+    }
+
+    const highObj = asRecord(record.high)
+    const lowObj = asRecord(record.low)
+    if (
+        highObj?.high !== undefined &&
+        highObj?.low !== undefined &&
+        lowObj?.high !== undefined &&
+        lowObj?.low !== undefined
+    ) {
+        const d1 = decryptUint(toBigInt(highObj.high), userKey)
+        const d2 = decryptUint(toBigInt(highObj.low), userKey)
+        const d3 = decryptUint(toBigInt(lowObj.high), userKey)
+        const d4 = decryptUint(toBigInt(lowObj.low), userKey)
+        return (d1 << 192n) + (d2 << 128n) + (d3 << 64n) + d4
+    }
+
+    const high = record.ciphertextHigh ?? record[0]
+    const low = record.ciphertextLow ?? record[1]
+    if (high !== undefined && low !== undefined) {
+        return decryptUint256(
+            {
+                ciphertextHigh: toBigInt(high),
+                ciphertextLow: toBigInt(low)
+            },
+            userKey
+        )
+    }
+
+    throw new Error("Invalid ctUint256 payload.")
+}
+
+export async function buildItUint256WithSigner({
+    value,
+    aesKey,
+    signerAddress,
+    contractAddress,
+    functionSelector,
+    signMessage
+}: BuildItUint256WithSignerParams): Promise<itUint256Signed> {
+    const plaintextBigInt = BigInt(value)
+    if (plaintextBigInt < 0n || plaintextBigInt >= BigInt(2) ** BigInt(MAX_PLAINTEXT_BIT_SIZE)) {
+        throw new RangeError("Plaintext size must be 256 bits or smaller.")
+    }
+
+    const ciphertext = encryptUint256(plaintextBigInt, aesKey)
+    const message = solidityPacked(
+        ["address", "address", "bytes4", "uint256", "uint256"],
+        [
+            signerAddress,
+            contractAddress,
+            functionSelector,
+            ciphertext.ciphertextHigh,
+            ciphertext.ciphertextLow
+        ]
+    )
+    const signature = await signMessage(getBytes(message))
+
+    return { ciphertext, signature }
 }
 
 /**

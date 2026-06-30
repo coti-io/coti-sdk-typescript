@@ -1,11 +1,15 @@
 import forge from 'node-forge'
-import { Wallet } from 'ethers'
+import { getBytes, solidityPacked, Wallet } from 'ethers'
 import {
+    buildItUint256WithSigner,
     buildInputText,
+    decryptCtUint256,
     decryptUint,
     decryptUint256,
     encryptUint,
     encryptUint256,
+    isCtUint256Shape,
+    isZeroCtUint256,
     normalizeCtPayload,
     prepareIT256
 } from '../../src'
@@ -123,6 +127,85 @@ describe('typed uint ciphertext helpers', () => {
             )
             expect(() => normalizeCtPayload('123' as any, 'ctUint256')).toThrow(
                 'Invalid ctUint256 payload.'
+            )
+        })
+    })
+
+    describe('ctUint256 shape helpers', () => {
+        test('detects flat, positional, and nested ctUint256 shapes', () => {
+            expect(isCtUint256Shape({ ciphertextHigh: 1n, ciphertextLow: 2n })).toBe(true)
+            expect(isCtUint256Shape([1n, 2n])).toBe(true)
+            expect(
+                isCtUint256Shape({
+                    high: { high: 1n, low: 2n },
+                    low: { high: 3n, low: 4n }
+                })
+            ).toBe(true)
+            expect(isCtUint256Shape({ invalid: true })).toBe(false)
+        })
+
+        test('detects zero ctUint256 values', () => {
+            expect(isZeroCtUint256({ ciphertextHigh: 0n, ciphertextLow: 0n })).toBe(true)
+            expect(isZeroCtUint256([0n, 0n])).toBe(true)
+            expect(
+                isZeroCtUint256({
+                    high: { high: 0n, low: 0n },
+                    low: { high: 0n, low: 0n }
+                })
+            ).toBe(true)
+            expect(isZeroCtUint256({ ciphertextHigh: 1n, ciphertextLow: 0n })).toBe(false)
+        })
+
+        test('decrypts flat and nested ctUint256 shapes', () => {
+            const flat = encryptUint256(12345n, AES_KEY)
+            expect(decryptCtUint256(flat, AES_KEY)).toBe(12345n)
+            expect(decryptCtUint256([flat.ciphertextHigh, flat.ciphertextLow], AES_KEY)).toBe(12345n)
+
+            const nested = {
+                high: {
+                    high: encryptUint(1n, AES_KEY),
+                    low: encryptUint(2n, AES_KEY)
+                },
+                low: {
+                    high: encryptUint(3n, AES_KEY),
+                    low: encryptUint(4n, AES_KEY)
+                }
+            }
+            const expected = (1n << 192n) + (2n << 128n) + (3n << 64n) + 4n
+            expect(decryptCtUint256(nested, AES_KEY)).toBe(expected)
+        })
+    })
+
+    describe('buildItUint256WithSigner', () => {
+        test('builds a signed flat itUint256 with signer callback', async () => {
+            const signerAddress = Wallet.createRandom().address
+            const signature = '0x1234'
+            const signMessage = jest.fn().mockResolvedValue(signature)
+
+            const result = await buildItUint256WithSigner({
+                value: 12345n,
+                aesKey: AES_KEY,
+                signerAddress,
+                contractAddress: CONTRACT_ADDRESS,
+                functionSelector: FUNCTION_SELECTOR,
+                signMessage
+            })
+
+            expect(result.ciphertext).toEqual(encryptUint256(12345n, AES_KEY))
+            expect(result.signature).toBe(signature)
+            expect(signMessage).toHaveBeenCalledWith(
+                getBytes(
+                    solidityPacked(
+                        ['address', 'address', 'bytes4', 'uint256', 'uint256'],
+                        [
+                            signerAddress,
+                            CONTRACT_ADDRESS,
+                            FUNCTION_SELECTOR,
+                            result.ciphertext.ciphertextHigh,
+                            result.ciphertext.ciphertextLow
+                        ]
+                    )
+                )
             )
         })
     })
