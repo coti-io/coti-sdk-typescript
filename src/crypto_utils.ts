@@ -8,6 +8,31 @@ const HEX_BASE = 16
 const EIGHT_BYTES = 8
 const MAX_PLAINTEXT_BIT_SIZE = 256
 
+function assertUintInRange(plaintext: bigint, maxBits: number, errorMessage: string): bigint {
+    const value = BigInt(plaintext)
+    if (value < 0n || value >= 1n << BigInt(maxBits)) {
+        throw new RangeError(errorMessage)
+    }
+    return value
+}
+
+function assertAesKeySize(key: Uint8Array): void {
+    if (key.length !== BLOCK_SIZE) {
+        throw new RangeError("Key size must be 128 bits.")
+    }
+}
+
+function splitCtBlock(block: Uint8Array): { cipher: Uint8Array; r: Uint8Array } {
+    return {
+        cipher: block.subarray(0, BLOCK_SIZE),
+        r: block.subarray(BLOCK_SIZE)
+    }
+}
+
+function packEncryptBlocks(...blocks: Array<{ ciphertext: Uint8Array; r: Uint8Array }>): Uint8Array {
+    return new Uint8Array(blocks.flatMap(({ ciphertext, r }) => [...ciphertext, ...r]))
+}
+
 export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: Uint8Array; r: Uint8Array } {
     // Ensure plaintext is smaller than 128 bits (16 bytes)
     if (plaintext.length > BLOCK_SIZE) {
@@ -42,9 +67,7 @@ function validateDecryptInputs(key: Uint8Array, r: Uint8Array, ciphertext: Uint8
         throw new RangeError("Ciphertext size must be 128 bits.")
     }
 
-    if (key.length !== BLOCK_SIZE) {
-        throw new RangeError("Key size must be 128 bits.")
-    }
+    assertAesKeySize(key)
 
     if (r.length !== BLOCK_SIZE) {
         throw new RangeError("Random size must be 128 bits.")
@@ -194,10 +217,7 @@ function buildUintInputText(
     maxBits: 64 | 128,
     errorMessage: string
 ): itUint {
-    const plaintextBigInt = BigInt(plaintext)
-    if (plaintextBigInt < 0n || plaintextBigInt >= BigInt(2) ** BigInt(maxBits)) {
-        throw new RangeError(errorMessage)
-    }
+    const plaintextBigInt = assertUintInRange(plaintext, maxBits, errorMessage)
 
     const ctInt = encryptUint128Unchecked(plaintextBigInt, sender.userKey)
     const signature = signInputText(sender, contractAddress, functionSelector, ctInt)
@@ -293,11 +313,7 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
         return 0n
     }
 
-    const ctArray = ctUintToBytes(ciphertext)
-
-    // Split CT into two 128-bit arrays r and cipher
-    const cipher = ctArray.subarray(0, BLOCK_SIZE)
-    const r = ctArray.subarray(BLOCK_SIZE)
+    const { cipher, r } = splitCtBlock(ctUintToBytes(ciphertext))
 
     // encodeKey validates and normalizes the key (strips "0x", enforces 128-bit)
     const userKeyBytes = encodeKey(userKey)
@@ -316,16 +332,8 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
  */
 export function decryptUint256(ciphertext: ctUint256, userKey: string): bigint {
     const ciphertextBytes = ctUint256ToBytes(ciphertext)
-    const ctHighArray = ciphertextBytes.slice(0, CT_SIZE)
-    const ctLowArray = ciphertextBytes.slice(CT_SIZE)
-
-    // Split high part into cipher and r
-    const cipherHigh = ctHighArray.subarray(0, BLOCK_SIZE)
-    const rHigh = ctHighArray.subarray(BLOCK_SIZE)
-
-    // Split low part into cipher and r
-    const cipherLow = ctLowArray.subarray(0, BLOCK_SIZE)
-    const rLow = ctLowArray.subarray(BLOCK_SIZE)
+    const { cipher: cipherHigh, r: rHigh } = splitCtBlock(ciphertextBytes.slice(0, CT_SIZE))
+    const { cipher: cipherLow, r: rLow } = splitCtBlock(ciphertextBytes.slice(CT_SIZE))
 
     const userKeyBytes = encodeKey(userKey)
 
@@ -400,10 +408,7 @@ export function decodeUint(plaintextBytes: Uint8Array): bigint {
 }
 
 export function encryptNumber(r: string | Uint8Array, key: Uint8Array) {
-    // Ensure key size is 128 bits (16 bytes)
-    if (key.length != BLOCK_SIZE) {
-        throw new RangeError("Key size must be 128 bits.")
-    }
+    assertAesKeySize(key)
 
     // Create a new AES cipher using the provided key
     const cipher = forge.cipher.createCipher('AES-ECB', forge.util.createBuffer(bytesToBinaryString(key)))
@@ -445,12 +450,9 @@ export function prepareIT(
 // Helper function to create ciphertext for 128-bit plaintext
 function createCiphertext128(plaintextBigInt: bigint, userAesKey: Uint8Array): Uint8Array {
     const plaintextBytes = bigintToBytesBE(plaintextBigInt, BLOCK_SIZE)
-    const { ciphertext, r } = encrypt(userAesKey, plaintextBytes)
-
-    const zeroBytes = new Uint8Array(BLOCK_SIZE)
-    const { ciphertext: ciphertextHigh, r: rHigh } = encrypt(userAesKey, zeroBytes)
-
-    return new Uint8Array([...ciphertextHigh, ...rHigh, ...ciphertext, ...r])
+    const encrypted = encrypt(userAesKey, plaintextBytes)
+    const encryptedHigh = encrypt(userAesKey, new Uint8Array(BLOCK_SIZE))
+    return packEncryptBlocks(encryptedHigh, encrypted)
 }
 
 // Helper function to create ciphertext for 256-bit plaintext
@@ -458,12 +460,12 @@ function createCiphertext256(plaintextBigInt: bigint, userAesKey: Uint8Array): U
     const plaintextBytes = bigintToBytesBE(plaintextBigInt, CT_SIZE)
     const high = encrypt(userAesKey, plaintextBytes.slice(0, BLOCK_SIZE))
     const low = encrypt(userAesKey, plaintextBytes.slice(BLOCK_SIZE))
-    return new Uint8Array([...high.ciphertext, ...high.r, ...low.ciphertext, ...low.r])
+    return packEncryptBlocks(high, low)
 }
 
 function encryptUint128Unchecked(plaintext: bigint, userKey: string): ctUint {
-    const { ciphertext, r } = encrypt(encodeKey(userKey), encodeUint(plaintext))
-    return decodeUint(new Uint8Array([...ciphertext, ...r]))
+    const encrypted = encrypt(encodeKey(userKey), encodeUint(plaintext))
+    return decodeUint(packEncryptBlocks(encrypted))
 }
 
 function encryptUint256ToBytes(plaintextBigInt: bigint, userAesKey: Uint8Array): Uint8Array {
@@ -477,23 +479,21 @@ function encryptUint256ToBytes(plaintextBigInt: bigint, userAesKey: Uint8Array):
  * Encrypts an unsigned 64-bit value into a ctUint ciphertext without building an IT signature.
  */
 export function encryptUint(plaintext: bigint, userKey: string): ctUint {
-    const plaintextBigInt = BigInt(plaintext)
-    if (plaintextBigInt < 0n || plaintextBigInt >= BigInt(2) ** BigInt(64)) {
-        throw new RangeError("Plaintext size must be 64 bits or smaller.")
-    }
-
-    return encryptUint128Unchecked(plaintextBigInt, userKey)
+    return encryptUint128Unchecked(
+        assertUintInRange(plaintext, 64, "Plaintext size must be 64 bits or smaller."),
+        userKey
+    )
 }
 
 /**
  * Encrypts an unsigned 256-bit value into a ctUint256 ciphertext without building an IT signature.
  */
 export function encryptUint256(plaintext: bigint, userKey: string): ctUint256 {
-    const plaintextBigInt = BigInt(plaintext)
-    if (plaintextBigInt < 0n || plaintextBigInt >= BigInt(2) ** BigInt(MAX_PLAINTEXT_BIT_SIZE)) {
-        throw new RangeError("Plaintext size must be 256 bits or smaller.")
-    }
-
+    const plaintextBigInt = assertUintInRange(
+        plaintext,
+        MAX_PLAINTEXT_BIT_SIZE,
+        "Plaintext size must be 256 bits or smaller."
+    )
     return ciphertextBytesToCtUint256(encryptUint256ToBytes(plaintextBigInt, encodeKey(userKey)))
 }
 
@@ -635,10 +635,11 @@ export async function buildItUint256WithSigner({
     functionSelector,
     signMessage
 }: BuildItUint256WithSignerParams): Promise<itUint256Signed> {
-    const plaintextBigInt = BigInt(value)
-    if (plaintextBigInt < 0n || plaintextBigInt >= BigInt(2) ** BigInt(MAX_PLAINTEXT_BIT_SIZE)) {
-        throw new RangeError("Plaintext size must be 256 bits or smaller.")
-    }
+    const plaintextBigInt = assertUintInRange(
+        value,
+        MAX_PLAINTEXT_BIT_SIZE,
+        "Plaintext size must be 256 bits or smaller."
+    )
 
     const ciphertext = encryptUint256(plaintextBigInt, aesKey)
     // Browser wallets sign the flat ABI payload. This intentionally differs
@@ -669,11 +670,11 @@ export function prepareIT256(
     contractAddress: string,
     functionSelector: string,
 ): itUint256 {
-    const plaintextBigInt = BigInt(plaintext)
-    const bitSize = plaintextBigInt.toString(2).length
-    if (bitSize > MAX_PLAINTEXT_BIT_SIZE) {
-        throw new RangeError("Plaintext size must be 256 bits or smaller.")
-    }
+    const plaintextBigInt = assertUintInRange(
+        plaintext,
+        MAX_PLAINTEXT_BIT_SIZE,
+        "Plaintext size must be 256 bits or smaller."
+    )
 
     const senderBytes = getBytes(sender.wallet.address)
     const contractBytes = getBytes(contractAddress)
