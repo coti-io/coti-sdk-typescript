@@ -1,6 +1,6 @@
 import forge from 'node-forge'
 import { BaseWallet, getBytes, SigningKey, solidityPackedKeccak256, hexlify, Wallet } from "ethers"
-import { ctString, ctUint, ctUint256, itString, itUint, itUint256 } from './types';
+import { ctString, ctUint, ctUint256, itString, itUint, itUint256, SerializableCtUint, SerializableCtUint256 } from './types';
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
@@ -531,6 +531,72 @@ function createCiphertext256(plaintextBigInt: bigint, userAesKey: Uint8Array): U
     const high = encrypt(userAesKey, plaintextBytes.slice(0, BLOCK_SIZE))
     const low = encrypt(userAesKey, plaintextBytes.slice(BLOCK_SIZE))
     return new Uint8Array([...high.ciphertext, ...high.r, ...low.ciphertext, ...low.r])
+}
+
+/**
+ * Encrypts an unsigned 64-bit value into a ctUint ciphertext without building an IT signature.
+ */
+export function encryptUint(plaintext: bigint, userKey: string): ctUint {
+    const plaintextBigInt = BigInt(plaintext)
+    if (plaintextBigInt < 0n || plaintextBigInt >= BigInt(2) ** BigInt(64)) {
+        throw new RangeError("Plaintext size must be 64 bits or smaller.")
+    }
+
+    const { ciphertext, r } = encrypt(encodeKey(userKey), encodeUint(plaintextBigInt))
+    return decodeUint(new Uint8Array([...ciphertext, ...r]))
+}
+
+/**
+ * Encrypts an unsigned 256-bit value into a ctUint256 ciphertext without building an IT signature.
+ */
+export function encryptUint256(plaintext: bigint, userKey: string): ctUint256 {
+    const plaintextBigInt = BigInt(plaintext)
+    if (plaintextBigInt < 0n || plaintextBigInt >= BigInt(2) ** BigInt(MAX_PLAINTEXT_BIT_SIZE)) {
+        throw new RangeError("Plaintext size must be 256 bits or smaller.")
+    }
+
+    const userAesKey = encodeKey(userKey)
+    const bitSize = plaintextBigInt.toString(2).length
+    const ct = bitSize <= MAX_PLAINTEXT_BIT_SIZE / 2
+        ? createCiphertext128(plaintextBigInt, userAesKey)
+        : createCiphertext256(plaintextBigInt, userAesKey)
+
+    return {
+        ciphertextHigh: decodeUint(ct.slice(0, CT_SIZE)),
+        ciphertextLow: decodeUint(ct.slice(CT_SIZE))
+    }
+}
+
+function toBigInt(value: string | number | bigint | undefined | null): bigint {
+    if (value === undefined || value === null) {
+        throw new Error("Missing bigint value.")
+    }
+    return BigInt(value)
+}
+
+export function normalizeCtPayload(value: SerializableCtUint, type: 'ctUint64'): ctUint;
+export function normalizeCtPayload(value: SerializableCtUint256, type: 'ctUint256'): ctUint256;
+export function normalizeCtPayload(value: SerializableCtUint | SerializableCtUint256, type: 'ctUint64' | 'ctUint256'): ctUint | ctUint256;
+export function normalizeCtPayload(
+    value: SerializableCtUint | SerializableCtUint256,
+    type: 'ctUint64' | 'ctUint256'
+): ctUint | ctUint256 {
+    if (type === 'ctUint64') {
+        return toBigInt(value as SerializableCtUint)
+    }
+
+    if (!value || typeof value !== 'object') {
+        throw new Error("Invalid ctUint256 payload.")
+    }
+
+    if ('ciphertextHigh' in value && 'ciphertextLow' in value) {
+        return {
+            ciphertextHigh: toBigInt(value.ciphertextHigh),
+            ciphertextLow: toBigInt(value.ciphertextLow)
+        }
+    }
+
+    throw new Error("Invalid ctUint256 payload.")
 }
 
 /**
