@@ -151,6 +151,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: pages
+      cancel-in-progress: true
     permissions:
       pages: write
       id-token: write
