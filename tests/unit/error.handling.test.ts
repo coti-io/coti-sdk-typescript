@@ -102,6 +102,38 @@ describe('Unit: Error Handling', () => {
             expect(() => encryptNumber('ABCDEFGHIJKLMNOP', wrongKey)).toThrow(RangeError)
             expect(() => encryptNumber('ABCDEFGHIJKLMNOP', wrongKey)).toThrow('Key size must be 128 bits.')
         })
+
+        test('throws RangeError when key is too long', () => {
+            const wrongKey = new Uint8Array(17)
+            expect(() => encryptNumber('ABCDEFGHIJKLMNOP', wrongKey)).toThrow('Key size must be 128 bits.')
+        })
+    })
+
+    describe('encrypt edge cases', () => {
+        test('accepts zero-length plaintext', () => {
+            expect(() => encrypt(VALID_AES_KEY, new Uint8Array())).not.toThrow()
+        })
+
+        test('accepts exactly 16-byte plaintext', () => {
+            expect(() => encrypt(VALID_AES_KEY, new Uint8Array(16))).not.toThrow()
+        })
+    })
+
+    describe('negative plaintext rejection', () => {
+        test.each([
+            ['prepareIT', () => prepareIT(-1n, createTestSender(), TEST_CONSTANTS.CONTRACT_ADDRESS, TEST_CONSTANTS.FUNCTION_SELECTOR)],
+            ['prepareIT256', () => prepareIT256(-1n, createTestSender(), TEST_CONSTANTS.CONTRACT_ADDRESS, TEST_CONSTANTS.FUNCTION_SELECTOR)],
+            ['buildInputText', () => buildInputText(-1n, createTestSender(), TEST_CONSTANTS.CONTRACT_ADDRESS, TEST_CONSTANTS.FUNCTION_SELECTOR)]
+        ])('%s rejects negative plaintext', (_name, fn) => {
+            expect(fn).toThrow(RangeError)
+        })
+    })
+
+    describe('decryptUint zero short-circuit', () => {
+        test('returns 0n for zero ciphertext without validating key', () => {
+            expect(decryptUint(0n, '')).toBe(0n)
+            expect(decryptUint(0n, 'invalid-key')).toBe(0n)
+        })
     })
 
     describe('encodeKey error cases', () => {
@@ -117,6 +149,14 @@ describe('Unit: Error Handling', () => {
 
         test('throws when user key is empty', () => {
             expect(() => encodeKey('')).toThrow('AES key is required')
+        })
+
+        test('throws when user key has 0x prefix but wrong length', () => {
+            expect(() => encodeKey('0x' + 'ab'.repeat(15))).toThrow('expected 32 hex characters')
+        })
+
+        test('accepts 0x-prefixed valid key', () => {
+            expect(encodeKey('0x' + VALID_USER_KEY)).toEqual(encodeKey(VALID_USER_KEY))
         })
     })
 

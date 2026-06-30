@@ -20,6 +20,25 @@ describe("String Encryption and Decryption (decryptString)", () => {
         sender = { wallet, userKey };
     });
 
+    it("should correctly encrypt and decrypt an empty string", () => {
+        const it = buildStringInputText("", sender, contractAddress, functionSelector);
+        expect(it.ciphertext.value).toEqual([]);
+        expect(decryptString(it.ciphertext, userKey)).toBe("");
+    });
+
+    it("should correctly encrypt and decrypt unicode and emoji content", () => {
+        const targetString = "Hello 世界 🌍";
+        const it = buildStringInputText(targetString, sender, contractAddress, functionSelector);
+        expect(decryptString(it.ciphertext, userKey)).toBe(targetString);
+    });
+
+    it("should handle a string spanning three 8-byte chunks", () => {
+        const targetString = "a".repeat(17); // 17 bytes => 3 chunks
+        const it = buildStringInputText(targetString, sender, contractAddress, functionSelector);
+        expect(it.ciphertext.value.length).toBe(3);
+        expect(decryptString(it.ciphertext, userKey)).toBe(targetString);
+    });
+
     it("should correctly encrypt and decrypt a string perfectly matching the 8-byte chunk size", () => {
         const targetString = "12345678"; // Exact 8 bytes
         const it = buildStringInputText(targetString, sender, contractAddress, functionSelector);

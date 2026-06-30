@@ -1,9 +1,17 @@
 import {
+    bigintToBytesBE,
+    bytesToBigint,
+    bytesToHex,
+    ctUint256ToBytes,
+    ciphertextBytesToCtUint256
+} from '../../src/bytes'
+import {
     encodeUint,
     decodeUint,
     encodeKey,
     encrypt,
     decrypt,
+    encryptUint,
     prepareIT,
     prepareIT256,
     decryptUint,
@@ -165,6 +173,40 @@ describe('Unit: Property-Based Round-Trip Tests', () => {
                 )
                 const decrypted = decryptUint(ciphertext, TEST_CONSTANTS.USER_KEY)
                 expect(decrypted).toEqual(v)
+            }
+        )
+    })
+
+    describe('bytes module round-trips', () => {
+        test('bytesToHex and bytesToBigint are inverse for random byte arrays', () => {
+            for (let i = 0; i < 20; i++) {
+                const bytes = new Uint8Array(16).map(() => Math.floor(Math.random() * 256)) // NOSONAR
+                expect(bytesToBigint(bytes)).toEqual(bytesToBigint(new Uint8Array([...bytes])))
+                expect(bytesToHex(bytes)).toHaveLength(bytes.length * 2)
+            }
+        })
+
+        test('ctUint256 byte serialization round-trip', () => {
+            const ct = {
+                ciphertextHigh: 123456789n,
+                ciphertextLow: 987654321n
+            }
+            expect(ciphertextBytesToCtUint256(ctUint256ToBytes(ct))).toEqual(ct)
+        })
+
+        test('bigintToBytesBE width is stable for same value', () => {
+            const value = randomBigInt(96)
+            const width = 16
+            expect(bigintToBytesBE(value, width)).toEqual(bigintToBytesBE(value, width))
+        })
+    })
+
+    describe('encryptUint / decryptUint full-cycle', () => {
+        test.each([0n, 1n, (2n ** 32n) - 1n, (2n ** 64n) - 1n])(
+            'round-trips uint64 boundary value %s',
+            (value) => {
+                const ct = encryptUint(value, TEST_CONSTANTS.USER_KEY)
+                expect(decryptUint(ct, TEST_CONSTANTS.USER_KEY)).toBe(value)
             }
         )
     })

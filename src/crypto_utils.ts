@@ -32,6 +32,17 @@ function packEncryptBlocks(...blocks: Array<{ ciphertext: Uint8Array; r: Uint8Ar
     return new Uint8Array(blocks.flatMap(({ ciphertext, r }) => [...ciphertext, ...r]))
 }
 
+/**
+ * Low-level AES block encryption used by the COTI garbled-circuit scheme.
+ *
+ * Encrypts up to 16 bytes of plaintext by XORing with AES-ECB(random `r`).
+ * Returns the 16-byte ciphertext block and the random `r` used (also 16 bytes).
+ *
+ * @param key - 128-bit AES key (16 bytes).
+ * @param plaintext - Up to 16 bytes; shorter inputs are zero-padded on the left.
+ * @returns The ciphertext block and random `r` (each 16 bytes).
+ * @throws RangeError if `plaintext` exceeds 16 bytes or `key` is not 16 bytes.
+ */
 export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: Uint8Array; r: Uint8Array } {
     // Ensure plaintext is smaller than 128 bits (16 bytes)
     if (plaintext.length > BLOCK_SIZE) {
@@ -104,7 +115,20 @@ function decryptBlock(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array): U
     return plaintext
 }
 
-// Refactored decrypt function with reduced complexity
+/**
+ * Low-level AES block decryption. Inverts {@link encrypt}.
+ *
+ * Decrypts one 16-byte block. When `r2` and `ciphertext2` are provided, decrypts
+ * a second block and returns the 32-byte concatenation of both plaintext blocks.
+ *
+ * @param key - 128-bit AES key (16 bytes).
+ * @param r - 16-byte random value from encryption.
+ * @param ciphertext - 16-byte ciphertext block.
+ * @param r2 - Optional second-block random value (must pair with `ciphertext2`).
+ * @param ciphertext2 - Optional second-block ciphertext (must pair with `r2`).
+ * @returns 16-byte plaintext, or 32 bytes when a second block is supplied.
+ * @throws RangeError if any input has an invalid length or block pairs are mismatched.
+ */
 export function decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array, r2: Uint8Array | null = null, ciphertext2: Uint8Array | null = null): Uint8Array {
     validateDecryptInputs(key, r, ciphertext)
     validateSecondBlock(r2, ciphertext2)
@@ -120,6 +144,11 @@ export function decrypt(key: Uint8Array, r: Uint8Array, ciphertext: Uint8Array, 
     return plaintext
 }
 
+/**
+ * Generates a 2048-bit RSA key pair in DER encoding.
+ *
+ * @returns Public and private keys as `Uint8Array` DER blobs.
+ */
 export function generateRSAKeyPair(): { publicKey: Uint8Array; privateKey: Uint8Array } {
     // Generate a new RSA key pair
     const rsaKeyPair = forge.pki.rsa.generateKeyPair({ bits: 2048 })
@@ -134,6 +163,14 @@ export function generateRSAKeyPair(): { publicKey: Uint8Array; privateKey: Uint8
     }
 }
 
+/**
+ * Decrypts an RSA-OAEP (SHA-256) ciphertext with a DER-encoded private key.
+ *
+ * @param privateKey - RSA private key as a DER `Uint8Array`.
+ * @param ciphertext - Hex-encoded RSA ciphertext (no `0x` prefix required by forge).
+ * @returns Decrypted payload as a lowercase hex string.
+ * @throws Error if the key or ciphertext format is invalid.
+ */
 export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
     // Convert privateKey from Uint8Array to PEM format
     const privateKeyPEM = forge.pki.privateKeyToPem(forge.pki.privateKeyFromAsn1(forge.asn1.fromDer(forge.util.createBuffer(bytesToBinaryString(privateKey)))));
@@ -150,6 +187,18 @@ export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
     return bytesToHex(decryptedBytes)
 }
 
+/**
+ * Recovers a user's AES key by XORing two RSA-decrypted key shares.
+ *
+ * Each share is RSA-OAEP encrypted; after decryption both shares are parsed as
+ * hex AES keys and XORed to produce the final 128-bit user key.
+ *
+ * @param privateKey - RSA private key used to decrypt both shares.
+ * @param encryptedKeyShare0 - Hex RSA ciphertext of the first share.
+ * @param encryptedKeyShare1 - Hex RSA ciphertext of the second share.
+ * @returns Recovered AES key as a 32-character lowercase hex string.
+ * @throws Error if RSA decryption or key parsing fails.
+ */
 export function recoverUserKey(privateKey: Uint8Array, encryptedKeyShare0: string, encryptedKeyShare1: string): string {
     const decryptedKeyShare0: string = decryptRSA(privateKey, encryptedKeyShare0);
     const decryptedKeyShare1: string = decryptRSA(privateKey, encryptedKeyShare1);
@@ -166,6 +215,13 @@ export function recoverUserKey(privateKey: Uint8Array, encryptedKeyShare0: strin
 }
 
 
+/**
+ * Signs a message hash with an Ethereum secp256k1 private key.
+ *
+ * @param message - 32-byte message digest as a hex string (e.g. from `solidityPackedKeccak256`).
+ * @param privateKey - Signer's private key (hex string).
+ * @returns 65-byte signature (`r` || `s` || `v`) as a `Uint8Array`.
+ */
 export function sign(message: string, privateKey: string) {
     const key = new SigningKey(privateKey)
     const sig = key.sign(message)
@@ -199,6 +255,18 @@ function signItUintDigest(
     return sign(buildItMessageHash(signerAddress, contractAddress, functionSelector, ct), privateKey)
 }
 
+/**
+ * Signs a ctUint ciphertext for COTI input-text (IT) submission.
+ *
+ * Hashes `(signer, contract, selector, ciphertext)` with `solidityPackedKeccak256`
+ * and signs the digest with the sender's wallet private key.
+ *
+ * @param sender - Wallet and user AES key (key is not used for signing).
+ * @param contractAddress - Target contract address.
+ * @param functionSelector - 4-byte function selector (e.g. `"0x11223344"`).
+ * @param ct - Encrypted value ({@link ctUint} bigint) being signed.
+ * @returns 65-byte signature as a `Uint8Array`.
+ */
 export function signInputText(
     sender: { wallet: BaseWallet; userKey: string },
     contractAddress: string,
@@ -228,9 +296,19 @@ function buildUintInputText(
 }
 
 /**
- * @deprecated Use `prepareIT` for unsigned integer input-text values. This
+ * @deprecated Use {@link prepareIT} for unsigned integer input-text values. This
  * legacy helper is limited to 64-bit plaintexts and will be removed in a
  * future major version.
+ *
+ * Encrypts a plaintext, signs the ciphertext, and returns an {@link itUint}
+ * ready for smart contract submission.
+ *
+ * @param plaintext - Unsigned value up to 64 bits.
+ * @param sender - Wallet and user AES key.
+ * @param contractAddress - Target contract address.
+ * @param functionSelector - 4-byte function selector.
+ * @returns Signed input text with {@link ctUint} ciphertext.
+ * @throws RangeError if `plaintext` exceeds 64 bits or is negative.
  */
 export function buildInputText(
     plaintext: bigint,
@@ -248,6 +326,19 @@ export function buildInputText(
     )
 }
 
+/**
+ * Builds signed input text for a UTF-8 string.
+ *
+ * Encodes the string in 8-byte chunks (each stored as a {@link ctUint}),
+ * encrypts and signs each chunk independently, and returns an {@link itString}.
+ *
+ * @param plaintext - UTF-8 string to encrypt.
+ * @param sender - Wallet and user AES key.
+ * @param contractAddress - Target contract address.
+ * @param functionSelector - 4-byte function selector.
+ * @returns Signed string input text with one ciphertext/signature pair per chunk.
+ * @throws RangeError if any chunk exceeds 64 bits after encoding.
+ */
 export function buildStringInputText(
     plaintext: string,
     sender: { wallet: BaseWallet; userKey: string },
@@ -328,10 +419,12 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
 }
 
 /**
- * Decrypts a 256-bit ciphertext (ctUint256) using the user's AES key.
- * @param {ctUint256} ciphertext - The 256-bit ciphertext object with ciphertextHigh and ciphertextLow.
- * @param {string} userKey - The user's AES key as a hex string (32 characters).
- * @returns {bigint} - The decrypted plaintext as a BigInt.
+ * Decrypts a canonical {@link ctUint256} ciphertext using the user's AES key.
+ *
+ * @param ciphertext - Object with `ciphertextHigh` and `ciphertextLow` parts.
+ * @param userKey - AES key (32 hex chars, optionally `0x`-prefixed).
+ * @returns Decrypted plaintext as a bigint (up to 256 bits).
+ * @throws Error if the key is invalid.
  */
 export function decryptUint256(ciphertext: ctUint256, userKey: string): bigint {
     const ciphertextBytes = ctUint256ToBytes(ciphertext)
@@ -346,6 +439,17 @@ export function decryptUint256(ciphertext: ctUint256, userKey: string): bigint {
     return decodeUint(decryptedMessage)
 }
 
+/**
+ * Decrypts a {@link ctString} ciphertext back to a UTF-8 string.
+ *
+ * Each chunk is decrypted via {@link decryptUint}; trailing zero padding added
+ * during {@link buildStringInputText} is trimmed before decoding.
+ *
+ * @param ciphertext - String ciphertext with an array of {@link ctUint} chunks.
+ * @param userKey - AES key (32 hex chars, optionally `0x`-prefixed).
+ * @returns Decrypted UTF-8 string.
+ * @throws Error if the key is invalid for any non-zero chunk.
+ */
 export function decryptString(ciphertext: ctString, userKey: string): string {
     const allBytes: number[] = []
 
@@ -374,7 +478,12 @@ export function decryptString(ciphertext: ctString, userKey: string): string {
 /**
  * Generates 16 bytes of cryptographically random AES key material as a
  * node-forge binary string (each character's code point is one byte 0–255).
- * Convert to hex with `Buffer.from(value, "binary").toString("hex")` when needed.
+ *
+ * @returns 16-character forge binary string (not hex).
+ * @example
+ * ```ts
+ * const hexKey = Buffer.from(generateRandomAesKeyBinaryString(), "binary").toString("hex")
+ * ```
  */
 export function generateRandomAesKeyBinaryString(): string {
     return forge.random.getBytesSync(BLOCK_SIZE)
@@ -393,6 +502,9 @@ export function generateRandomAesKeySizeNumber(): string {
  *
  * In forge binary strings each character's Unicode code point represents one
  * byte (0–255). This is **not** UTF-8 encoding of human-readable text.
+ *
+ * @param binaryString - Forge binary string (one byte per character code point).
+ * @returns Byte array with one entry per character.
  */
 export function binaryStringToBytes(binaryString: string): Uint8Array {
     return new Uint8Array(Array.from(binaryString, (char) => Number.parseInt(char.codePointAt(0)?.toString(HEX_BASE)!, HEX_BASE)))
@@ -442,10 +554,17 @@ export function normalizeAesKey(aesKey: string | null | undefined): string {
     return lowered
 }
 
+/**
+ * Parses and validates a user AES key hex string into a 16-byte `Uint8Array`.
+ *
+ * Delegates to {@link normalizeAesKey} for validation (strips `0x`, lowercases,
+ * enforces 128-bit length) before hex decoding.
+ *
+ * @param userKey - AES key as a 32-character hex string (optional `0x` prefix).
+ * @returns 128-bit key as 16 bytes.
+ * @throws Error if the key is missing, wrong length, or contains non-hex characters.
+ */
 export function encodeKey(userKey: string): Uint8Array {
-    // Validate and normalize the key (strips "0x", lowercases, enforces 128-bit)
-    // so that every encrypt/decrypt path rejects malformed keys consistently
-    // instead of silently producing NaN/garbage bytes.
     const normalizedKey = normalizeAesKey(userKey)
     const keyBytes = new Uint8Array(16)
 
@@ -456,14 +575,35 @@ export function encodeKey(userKey: string): Uint8Array {
     return keyBytes
 }
 
+/**
+ * Encodes an unsigned integer as a 16-byte big-endian byte array.
+ *
+ * @param plaintext - Integer value (typically up to 128 bits).
+ * @returns 16-byte big-endian representation.
+ */
 export function encodeUint(plaintext: bigint): Uint8Array {
     return bigintToBytesBE(plaintext, BLOCK_SIZE)
 }
 
+/**
+ * Decodes a big-endian byte array into an unsigned bigint.
+ *
+ * @param plaintextBytes - Byte array (commonly 16 bytes from {@link encodeUint}).
+ * @returns Decoded unsigned integer.
+ * @throws SyntaxError if `plaintextBytes` is empty.
+ */
 export function decodeUint(plaintextBytes: Uint8Array): bigint {
     return bytesToBigint(plaintextBytes)
 }
 
+/**
+ * AES-ECB encrypts a 16-byte random value (the `r` component of COTI encryption).
+ *
+ * @param r - Random value as a forge binary string or 16-byte `Uint8Array`.
+ * @param key - 128-bit AES key (16 bytes).
+ * @returns Encrypted 16-byte block.
+ * @throws RangeError if `key` is not 16 bytes.
+ */
 export function encryptNumber(r: string | Uint8Array, key: Uint8Array) {
     assertAesKeySize(key)
 
@@ -488,6 +628,20 @@ function signIT(sender: Uint8Array, contract: Uint8Array, hashFunc: Uint8Array, 
     return signatureToBytes(sig)
 }
 
+/**
+ * Prepares a signed input text ({@link itUint}) for an unsigned integer.
+ *
+ * Encrypts up to **128-bit** plaintext, signs the resulting {@link ctUint},
+ * and returns the ciphertext/signature pair for smart contract submission.
+ * For 256-bit values use {@link prepareIT256} instead.
+ *
+ * @param plaintext - Unsigned value up to 128 bits.
+ * @param sender - Wallet and user AES key.
+ * @param contractAddress - Target contract address.
+ * @param functionSelector - 4-byte function selector.
+ * @returns Signed input text.
+ * @throws RangeError if `plaintext` exceeds 128 bits or is negative.
+ */
 export function prepareIT(
     plaintext: bigint,
     sender: { wallet: BaseWallet; userKey: string },
@@ -533,11 +687,17 @@ function encryptUint256ToBytes(plaintextBigInt: bigint, userAesKey: Uint8Array):
 }
 
 /**
- * Encrypts an unsigned value into a ctUint ciphertext without building an IT signature.
+ * Encrypts an unsigned value into a {@link ctUint} without building an IT signature.
  *
- * Plaintext must fit in 64 bits. The resulting `ctUint` bigint packs 32 bytes
- * on the wire (16-byte ciphertext + 16-byte random `r`). For 128-bit input-text
- * values use `prepareIT` instead.
+ * Plaintext must fit in **64 bits**. The resulting {@link ctUint} bigint packs
+ * 32 bytes on the wire (16-byte ciphertext + 16-byte random `r`). For 128-bit
+ * input-text values use {@link prepareIT} instead.
+ *
+ * @param plaintext - Unsigned value up to 64 bits.
+ * @param userKey - AES key (32 hex chars, optionally `0x`-prefixed).
+ * @returns Encrypted ctUint ciphertext as a bigint.
+ * @throws RangeError if `plaintext` exceeds 64 bits or is negative.
+ * @throws Error if the key is invalid.
  */
 export function encryptUint(plaintext: bigint, userKey: string): ctUint {
     return encryptUint128Unchecked(
@@ -547,7 +707,17 @@ export function encryptUint(plaintext: bigint, userKey: string): ctUint {
 }
 
 /**
- * Encrypts an unsigned 256-bit value into a ctUint256 ciphertext without building an IT signature.
+ * Encrypts an unsigned value into a {@link ctUint256} without building an IT signature.
+ *
+ * Values up to 128 bits use compact encoding; larger values up to 256 bits use
+ * full two-block encoding. For signed submission use {@link prepareIT256} or
+ * {@link buildItUint256WithSigner} instead.
+ *
+ * @param plaintext - Unsigned value up to 256 bits.
+ * @param userKey - AES key (32 hex chars, optionally `0x`-prefixed).
+ * @returns Encrypted ctUint256 ciphertext.
+ * @throws RangeError if `plaintext` exceeds 256 bits or is negative.
+ * @throws Error if the key is invalid.
  */
 export function encryptUint256(plaintext: bigint, userKey: string): ctUint256 {
     const plaintextBigInt = assertUintInRange(
@@ -597,8 +767,17 @@ function parseFlatCtUint256(value: unknown): { high: unknown; low: unknown } | n
 
 /**
  * Strict coercion for app/JSON payloads into canonical ctUint types.
- * ctUint256 accepts flat objects `{ ciphertextHigh, ciphertextLow }` or
- * 2-tuples only. For nested on-chain shapes, use `decryptCtUint256` instead.
+ *
+ * - `'ctUint64'`: coerces string/number/bigint to {@link ctUint}.
+ * - `'ctUint256'`: accepts flat `{ ciphertextHigh, ciphertextLow }` or
+ *   `[high, low]` tuples only.
+ *
+ * For nested on-chain shapes use {@link decryptCtUint256} instead.
+ *
+ * @param value - Serializable payload from JSON/RPC.
+ * @param type - Target ciphertext type discriminator.
+ * @returns Canonical `bigint` or {@link ctUint256}.
+ * @throws Error if the payload cannot be coerced.
  */
 export function normalizeCtPayload(value: SerializableCtUint, type: 'ctUint64'): ctUint;
 export function normalizeCtPayload(value: SerializableCtUint256, type: 'ctUint256'): ctUint256;
@@ -663,10 +842,28 @@ function parseCtUint256Shape(value: unknown): ParsedCtUint256 | null {
     return null
 }
 
+/**
+ * Returns whether `value` matches a supported {@link ctUint256} wire shape.
+ *
+ * Accepts flat objects, two-element tuples, and nested four-limb objects as
+ * defined by {@link CtUint256Like}. Does not validate ciphertext correctness.
+ *
+ * @param value - Value to inspect (e.g. from RPC or contract return data).
+ * @returns `true` if the shape is recognized.
+ */
 export function isCtUint256Shape(value: unknown): value is CtUint256Like {
     return parseCtUint256Shape(value) !== null
 }
 
+/**
+ * Returns whether a ctUint256 value represents zero / uninitialized storage.
+ *
+ * Handles scalar zero, flat `{ ciphertextHigh, ciphertextLow }`, tuple, and
+ * nested four-limb shapes. Returns `false` for unrecognized shapes.
+ *
+ * @param ciphertext - Ciphertext value in any supported wire format.
+ * @returns `true` if all ciphertext limbs are zero.
+ */
 export function isZeroCtUint256(ciphertext: unknown): boolean {
     if (isZeroValue(ciphertext)) {
         return true
@@ -684,6 +881,18 @@ export function isZeroCtUint256(ciphertext: unknown): boolean {
     return isZeroValue(parsed.high) && isZeroValue(parsed.low)
 }
 
+/**
+ * Decrypts a ctUint256 from any supported wire shape.
+ *
+ * Unlike {@link decryptUint256}, accepts flat, tuple, and nested on-chain/RPC
+ * formats (see {@link isCtUint256Shape}). For strict JSON coercion use
+ * {@link normalizeCtPayload} first.
+ *
+ * @param ciphertext - Flat, tuple, or nested ctUint256 payload.
+ * @param userKey - AES key (32 hex chars, optionally `0x`-prefixed).
+ * @returns Decrypted plaintext as a bigint (up to 256 bits).
+ * @throws Error if the shape is invalid or the key is invalid.
+ */
 export function decryptCtUint256(ciphertext: unknown, userKey: string): bigint {
     const parsed = parseCtUint256Shape(ciphertext)
     if (!parsed) {
@@ -708,6 +917,19 @@ export function decryptCtUint256(ciphertext: unknown, userKey: string): bigint {
     )
 }
 
+/**
+ * Builds a signed {@link itUint256Signed} using an external wallet signer.
+ *
+ * Encrypts the value, then signs an ABI-packed payload of
+ * `(signer, contract, selector, ciphertextHigh, ciphertextLow)`. Intended for
+ * browser wallets — **not** interchangeable with {@link prepareIT256}, which
+ * signs raw ciphertext bytes for private-key callers.
+ *
+ * @param params - Value, AES key, addresses, selector, and async sign callback.
+ * @returns Encrypted ctUint256 and hex signature string from the wallet.
+ * @throws RangeError if `value` exceeds 256 bits or is negative.
+ * @throws Error if the AES key is invalid.
+ */
 export async function buildItUint256WithSigner({
     value,
     aesKey,
@@ -736,8 +958,18 @@ export async function buildItUint256WithSigner({
 }
 
 /**
- * Prepares a 256-bit IT by encrypting both parts of the plaintext, signing the encrypted message,
- * and packaging the resulting data for smart contract submission.
+ * Prepares a signed 256-bit input text ({@link itUint256}) for smart contract submission.
+ *
+ * Encrypts the plaintext (up to 256 bits), signs the raw 64-byte ciphertext bytes
+ * with the sender's private key, and returns the ciphertext/signature pair.
+ * For browser-wallet signing use {@link buildItUint256WithSigner} instead.
+ *
+ * @param plaintext - Unsigned value up to 256 bits.
+ * @param sender - Wallet and user AES key.
+ * @param contractAddress - Target contract address.
+ * @param functionSelector - 4-byte function selector.
+ * @returns Signed 256-bit input text.
+ * @throws RangeError if `plaintext` exceeds 256 bits or is negative.
  */
 export function prepareIT256(
     plaintext: bigint,

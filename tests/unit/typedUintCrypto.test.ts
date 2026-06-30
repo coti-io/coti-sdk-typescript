@@ -113,6 +113,13 @@ describe('typed uint ciphertext helpers', () => {
             expect(() => encryptUint256(2n ** 256n, AES_KEY)).toThrow(RangeError)
             expect(() => encryptUint256(-1n, AES_KEY)).toThrow(RangeError)
         })
+
+        test('switches encoding at the 128/129-bit boundary', () => {
+            expect(decryptUint256(encryptUint256((2n ** 128n) - 1n, AES_KEY), AES_KEY)).toBe(
+                (2n ** 128n) - 1n
+            )
+            expect(decryptUint256(encryptUint256(2n ** 128n, AES_KEY), AES_KEY)).toBe(2n ** 128n)
+        })
     })
 
     describe('normalizeCtPayload', () => {
