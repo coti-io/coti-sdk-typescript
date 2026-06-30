@@ -253,11 +253,13 @@ export function buildStringInputText(
 
         const byteArr = new Uint8Array([...encodedStr.slice(startIdx, endIdx), ...new Uint8Array(EIGHT_BYTES - (endIdx - startIdx))]) // pad the end of the string with zeros if needed
 
-        const it = buildInputText(
+        const it = buildUintInputText(
             decodeUint(byteArr), // convert the 8-byte hex string into a number
             sender,
             contractAddress,
-            functionSelector
+            functionSelector,
+            64,
+            "Plaintext size must be 64 bits or smaller."
         )
 
         inputText.ciphertext.value.push(it.ciphertext)
@@ -368,7 +370,7 @@ export function encodeString(str: string): Uint8Array {
 }
 
 function bytesToBinaryString(bytes: Uint8Array): string {
-    return Array.from(bytes, byte => String.fromCharCode(byte)).join('')
+    return Array.from(bytes, byte => String.fromCodePoint(byte)).join('')
 }
 
 function toForgeBinaryString(value: string | Uint8Array): string {
