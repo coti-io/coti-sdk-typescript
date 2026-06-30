@@ -168,7 +168,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: report-artifacts/test-results-24/test-report
+          path: report-artifacts/test-report
 
       - name: Deploy to GitHub Pages
         id: deployment
