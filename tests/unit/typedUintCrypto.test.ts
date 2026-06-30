@@ -134,6 +134,10 @@ describe('typed uint ciphertext helpers', () => {
                     'ctUint256'
                 )
             ).toEqual({ ciphertextHigh: 1n, ciphertextLow: 2n })
+            expect(normalizeCtPayload(['3', 4n], 'ctUint256')).toEqual({
+                ciphertextHigh: 3n,
+                ciphertextLow: 4n
+            })
         })
 
         test('rejects malformed ctUint256 payloads', () => {
@@ -143,6 +147,15 @@ describe('typed uint ciphertext helpers', () => {
             expect(() => normalizeCtPayload('123' as any, 'ctUint256')).toThrow(
                 'Invalid ctUint256 payload.'
             )
+            expect(() =>
+                normalizeCtPayload(
+                    {
+                        high: { high: 1n, low: 2n },
+                        low: { high: 3n, low: 4n }
+                    } as any,
+                    'ctUint256'
+                )
+            ).toThrow('Invalid ctUint256 payload.')
         })
     })
 

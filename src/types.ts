@@ -53,7 +53,9 @@ export type BuildItUint256WithSignerParams = {
     signMessage: (message: Uint8Array) => string | Promise<string>;
   };
 
-export type SerializableCtUint256 = {
-    ciphertextHigh?: SerializableCtUint;
-    ciphertextLow?: SerializableCtUint;
-  };
+export type SerializableCtUint256 =
+    | {
+        ciphertextHigh?: SerializableCtUint;
+        ciphertextLow?: SerializableCtUint;
+      }
+    | [SerializableCtUint, SerializableCtUint];

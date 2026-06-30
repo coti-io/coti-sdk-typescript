@@ -510,6 +510,35 @@ function toBigInt(value: unknown): bigint {
     throw new Error("Invalid bigint value.")
 }
 
+function asRecord(value: unknown): Record<string, unknown> & Record<number, unknown> | null {
+    return value && typeof value === 'object'
+        ? value as Record<string, unknown> & Record<number, unknown>
+        : null
+}
+
+/** Flat ctUint256 wire shapes: named fields or 2-element array. */
+function parseFlatCtUint256(value: unknown): { high: unknown; low: unknown } | null {
+    const record = asRecord(value)
+    if (record) {
+        const high = record.ciphertextHigh
+        const low = record.ciphertextLow
+        if (high !== undefined && low !== undefined) {
+            return { high, low }
+        }
+    }
+
+    if (Array.isArray(value) && value.length === 2) {
+        return { high: value[0], low: value[1] }
+    }
+
+    return null
+}
+
+/**
+ * Strict coercion for app/JSON payloads into canonical ctUint types.
+ * ctUint256 accepts flat objects `{ ciphertextHigh, ciphertextLow }` or
+ * 2-tuples only. For nested on-chain shapes, use `decryptCtUint256` instead.
+ */
 export function normalizeCtPayload(value: SerializableCtUint, type: 'ctUint64'): ctUint;
 export function normalizeCtPayload(value: SerializableCtUint256, type: 'ctUint256'): ctUint256;
 export function normalizeCtPayload(value: SerializableCtUint | SerializableCtUint256, type: 'ctUint64' | 'ctUint256'): ctUint | ctUint256;
@@ -521,18 +550,15 @@ export function normalizeCtPayload(
         return toBigInt(value as SerializableCtUint)
     }
 
-    if (!value || typeof value !== 'object') {
+    const flat = parseFlatCtUint256(value)
+    if (!flat) {
         throw new Error("Invalid ctUint256 payload.")
     }
 
-    if ('ciphertextHigh' in value && 'ciphertextLow' in value) {
-        return {
-            ciphertextHigh: toBigInt(value.ciphertextHigh),
-            ciphertextLow: toBigInt(value.ciphertextLow)
-        }
+    return {
+        ciphertextHigh: toBigInt(flat.high),
+        ciphertextLow: toBigInt(flat.low)
     }
-
-    throw new Error("Invalid ctUint256 payload.")
 }
 
 function isZeroValue(value: unknown): boolean {
@@ -543,17 +569,17 @@ function isZeroValue(value: unknown): boolean {
     }
 }
 
-function asRecord(value: unknown): Record<string, unknown> & Record<number, unknown> | null {
-    return value && typeof value === 'object'
-        ? value as Record<string, unknown> & Record<number, unknown>
-        : null
-}
-
 type ParsedCtUint256 =
     | { kind: 'nested'; parts: [unknown, unknown, unknown, unknown] }
     | { kind: 'flat'; high: unknown; low: unknown }
 
+/** Permissive shape detection for untrusted/on-chain payloads (flat, tuple, nested). */
 function parseCtUint256Shape(value: unknown): ParsedCtUint256 | null {
+    const flat = parseFlatCtUint256(value)
+    if (flat) {
+        return { kind: 'flat', high: flat.high, low: flat.low }
+    }
+
     const record = asRecord(value)
     if (!record) {
         return null
@@ -571,12 +597,6 @@ function parseCtUint256Shape(value: unknown): ParsedCtUint256 | null {
             kind: 'nested',
             parts: [highObj.high, highObj.low, lowObj.high, lowObj.low]
         }
-    }
-
-    const high = record.ciphertextHigh ?? record[0]
-    const low = record.ciphertextLow ?? record[1]
-    if (high !== undefined && low !== undefined) {
-        return { kind: 'flat', high, low }
     }
 
     return null
