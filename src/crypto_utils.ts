@@ -1,12 +1,12 @@
 import forge from 'node-forge'
 import { BaseWallet, getBytes, SigningKey, solidityPacked, solidityPackedKeccak256, hexlify, Wallet } from "ethers"
-import { BuildItUint256WithSignerParams, ctString, ctUint, ctUint256, itString, itUint, itUint256, itUint256Signed, SerializableCtUint, SerializableCtUint256 } from './types';
+import { BuildItUint256WithSignerParams, CtUint256Like, ctString, ctUint, ctUint256, itString, itUint, itUint256, itUint256Signed, SerializableCtUint, SerializableCtUint256 } from './types';
+import { bigintToBytesBE, bytesToBigint, bytesToHex, ciphertextBytesToCtUint256, CT_SIZE, ctUint256ToBytes, ctUintToBytes } from './bytes';
 
 const BLOCK_SIZE = 16 // AES block size in bytes
 const HEX_BASE = 16
 const EIGHT_BYTES = 8
 const MAX_PLAINTEXT_BIT_SIZE = 256
-const CT_SIZE = 32
 
 export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: Uint8Array; r: Uint8Array } {
     // Ensure plaintext is smaller than 128 bits (16 bytes)
@@ -114,7 +114,7 @@ export function generateRSAKeyPair(): { publicKey: Uint8Array; privateKey: Uint8
 
 export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
     // Convert privateKey from Uint8Array to PEM format
-    const privateKeyPEM = forge.pki.privateKeyToPem(forge.pki.privateKeyFromAsn1(forge.asn1.fromDer(forge.util.createBuffer(privateKey))));
+    const privateKeyPEM = forge.pki.privateKeyToPem(forge.pki.privateKeyFromAsn1(forge.asn1.fromDer(forge.util.createBuffer(bytesToBinaryString(privateKey)))));
 
     // Decrypt using RSA-OAEP
     const rsaPrivateKey = forge.pki.privateKeyFromPem(privateKeyPEM);
@@ -125,17 +125,7 @@ export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
 
     const decryptedBytes = encodeString(decrypted)
 
-    const userKey: Array<string> = []
-
-    for (let i = 0; i < decryptedBytes.length; i++) {
-        userKey.push(
-            decryptedBytes[i]
-                .toString(16)
-                .padStart(2, '0') // make sure each cell is one byte
-        )
-    }
-
-    return userKey.join("")
+    return bytesToHex(decryptedBytes)
 }
 
 export function recoverUserKey(privateKey: Uint8Array, encryptedKeyShare0: string, encryptedKeyShare1: string): string {
@@ -150,24 +140,14 @@ export function recoverUserKey(privateKey: Uint8Array, encryptedKeyShare0: strin
     for (let i = 0; i < BLOCK_SIZE; i++) {
         aesKeyBytes[i] = bufferKeyShare0[i] ^ bufferKeyShare1[i];
     }
-    const aesKey: Array<string> = []
-
-    let byte = ''
-
-    for (let i = 0; i < aesKeyBytes.length; i++) {
-        byte = aesKeyBytes[i].toString(HEX_BASE).padStart(2, '0') // ensure that the zero byte is represented using two digits
-
-        aesKey.push(byte)
-    }
-
-    return aesKey.join("")
+    return bytesToHex(aesKeyBytes)
 }
 
 
 export function sign(message: string, privateKey: string) {
     const key = new SigningKey(privateKey)
     const sig = key.sign(message)
-    return new Uint8Array([...getBytes(sig.r), ...getBytes(sig.s), ...getBytes(`0x0${sig.v - 27}`)])
+    return signatureToBytes(sig)
 }
 
 // Computes the COTI IT message hash shared by signInputText and buildItSignature.
@@ -183,46 +163,70 @@ function buildItMessageHash(
     )
 }
 
+function signatureToBytes(signature: ReturnType<SigningKey['sign']>): Uint8Array {
+    return new Uint8Array([...getBytes(signature.r), ...getBytes(signature.s), ...getBytes(`0x0${signature.v - 27}`)])
+}
+
+function signItUintDigest(
+    signerAddress: string,
+    contractAddress: string,
+    functionSelector: string,
+    ct: bigint,
+    privateKey: string
+): Uint8Array {
+    return sign(buildItMessageHash(signerAddress, contractAddress, functionSelector, ct), privateKey)
+}
+
 export function signInputText(
     sender: { wallet: BaseWallet; userKey: string },
     contractAddress: string,
     functionSelector: string,
     ct: bigint
 ) {
-    const message = buildItMessageHash(sender.wallet.address, contractAddress, functionSelector, ct)
-
-    return sign(message, sender.wallet.privateKey);
+    return signItUintDigest(sender.wallet.address, contractAddress, functionSelector, ct, sender.wallet.privateKey)
 }
 
+function buildUintInputText(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string,
+    maxBits: 64 | 128,
+    errorMessage: string
+): itUint {
+    const plaintextBigInt = BigInt(plaintext)
+    if (plaintextBigInt < 0n || plaintextBigInt >= BigInt(2) ** BigInt(maxBits)) {
+        throw new RangeError(errorMessage)
+    }
+
+    const ctInt = encryptUint128Unchecked(plaintextBigInt, sender.userKey)
+    const signature = signInputText(sender, contractAddress, functionSelector, ctInt)
+
+    return {
+        ciphertext: ctInt,
+        signature
+    }
+}
+
+/**
+ * @deprecated Use `prepareIT` for unsigned integer input-text values. This
+ * legacy helper is limited to 64-bit plaintexts and will be removed in a
+ * future major version.
+ */
 export function buildInputText(
     plaintext: bigint,
     sender: { wallet: BaseWallet; userKey: string },
     contractAddress: string,
     functionSelector: string
 ): itUint {
-    if (plaintext >= BigInt(2) ** BigInt(64)) {
-        throw new RangeError("Plaintext size must be 64 bits or smaller.")
-    }
-
-    // Convert the plaintext to bytes
-    const plaintextBytes = encodeUint(plaintext)
-
-    // Convert user key to bytes
-    const keyBytes = encodeKey(sender.userKey)
-
-    // Encrypt the plaintext using AES key
-    const { ciphertext, r } = encrypt(keyBytes, plaintextBytes)
-    const ct = new Uint8Array([...ciphertext, ...r])
-
-    // Convert the ciphertext to BigInt
-    const ctInt = decodeUint(ct)
-
-    const signature = signInputText(sender, contractAddress, functionSelector, ctInt);
-
-    return {
-        ciphertext: ctInt,
-        signature: signature
-    }
+    return buildUintInputText(
+        plaintext,
+        sender,
+        contractAddress,
+        functionSelector,
+        64,
+        "Plaintext size must be 64 bits or smaller."
+    )
 }
 
 export function buildStringInputText(
@@ -287,16 +291,7 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
         return 0n
     }
 
-    // Convert ciphertext to Uint8Array
-    let ctArray = new Uint8Array()
-
-    while (ciphertext > 0) {
-        const temp = new Uint8Array([Number(ciphertext & BigInt(255))])
-        ctArray = new Uint8Array([...temp, ...ctArray])
-        ciphertext >>= BigInt(8)
-    }
-
-    ctArray = new Uint8Array([...new Uint8Array(32 - ctArray.length), ...ctArray])
+    const ctArray = ctUintToBytes(ciphertext)
 
     // Split CT into two 128-bit arrays r and cipher
     const cipher = ctArray.subarray(0, BLOCK_SIZE)
@@ -318,30 +313,9 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
  * @returns {bigint} - The decrypted plaintext as a BigInt.
  */
 export function decryptUint256(ciphertext: ctUint256, userKey: string): bigint {
-
-    // Convert ciphertextHigh to Uint8Array
-    let ctHighArray = new Uint8Array()
-    let ctHigh = ciphertext.ciphertextHigh
-
-    while (ctHigh > 0) {
-        const temp = new Uint8Array([Number(ctHigh & BigInt(255))])
-        ctHighArray = new Uint8Array([...temp, ...ctHighArray])
-        ctHigh >>= BigInt(8)
-    }
-
-    ctHighArray = new Uint8Array([...new Uint8Array(CT_SIZE - ctHighArray.length), ...ctHighArray])
-
-    // Convert ciphertextLow to Uint8Array
-    let ctLowArray = new Uint8Array()
-    let ctLow = ciphertext.ciphertextLow
-
-    while (ctLow > 0) {
-        const temp = new Uint8Array([Number(ctLow & BigInt(255))])
-        ctLowArray = new Uint8Array([...temp, ...ctLowArray])
-        ctLow >>= BigInt(8)
-    }
-
-    ctLowArray = new Uint8Array([...new Uint8Array(CT_SIZE - ctLowArray.length), ...ctLowArray])
+    const ciphertextBytes = ctUint256ToBytes(ciphertext)
+    const ctHighArray = ciphertextBytes.slice(0, CT_SIZE)
+    const ctLowArray = ciphertextBytes.slice(CT_SIZE)
 
     // Split high part into cipher and r
     const cipherHigh = ctHighArray.subarray(0, BLOCK_SIZE)
@@ -393,6 +367,14 @@ export function encodeString(str: string): Uint8Array {
     return new Uint8Array(Array.from(str, (char) => Number.parseInt(char.codePointAt(0)?.toString(HEX_BASE)!, HEX_BASE)))
 }
 
+function bytesToBinaryString(bytes: Uint8Array): string {
+    return Array.from(bytes, byte => String.fromCharCode(byte)).join('')
+}
+
+function toForgeBinaryString(value: string | Uint8Array): string {
+    return typeof value === 'string' ? value : bytesToBinaryString(value)
+}
+
 export function encodeKey(userKey: string): Uint8Array {
     // Validate and normalize the key (strips "0x", lowercases, enforces 128-bit)
     // so that every encrypt/decrypt path rejects malformed keys consistently
@@ -408,30 +390,11 @@ export function encodeKey(userKey: string): Uint8Array {
 }
 
 export function encodeUint(plaintext: bigint): Uint8Array {
-    // Convert the plaintext to bytes in little-endian format
-
-    const plaintextBytes = new Uint8Array(BLOCK_SIZE) // Allocate a buffer of size 16 bytes
-
-    for (let i = 15; i >= 0; i--) {
-        plaintextBytes[i] = Number(plaintext & BigInt(255))
-        plaintext >>= BigInt(8)
-    }
-
-    return plaintextBytes
+    return bigintToBytesBE(plaintext, BLOCK_SIZE)
 }
 
 export function decodeUint(plaintextBytes: Uint8Array): bigint {
-    const plaintext: Array<string> = []
-
-    let byte = ''
-
-    for (let i = 0; i < plaintextBytes.length; i++) {
-        byte = plaintextBytes[i].toString(HEX_BASE).padStart(2, '0') // ensure that the zero byte is represented using two digits
-
-        plaintext.push(byte)
-    }
-
-    return BigInt("0x" + plaintext.join(""))
+    return bytesToBigint(plaintextBytes)
 }
 
 export function encryptNumber(r: string | Uint8Array, key: Uint8Array) {
@@ -441,11 +404,11 @@ export function encryptNumber(r: string | Uint8Array, key: Uint8Array) {
     }
 
     // Create a new AES cipher using the provided key
-    const cipher = forge.cipher.createCipher('AES-ECB', forge.util.createBuffer(key))
+    const cipher = forge.cipher.createCipher('AES-ECB', forge.util.createBuffer(bytesToBinaryString(key)))
 
     // Encrypt the random value 'r' using AES in ECB mode
     cipher.start()
-    cipher.update(forge.util.createBuffer(r))
+    cipher.update(forge.util.createBuffer(toForgeBinaryString(r)))
     cipher.finish()
 
     // Get the encrypted random value 'r' and ensure it's exactly 16 bytes
@@ -454,26 +417,11 @@ export function encryptNumber(r: string | Uint8Array, key: Uint8Array) {
     return encryptedR
 }
 
-// ---------- Helper Functions for IT Preparation ----------
-function writeBigUInt128BE(buf: Uint8Array, value: bigint) {
-    for (let i = 15; i >= 0; i--) {
-        buf[i] = Number(value & BigInt(0xff))
-        value >>= BigInt(8)
-    }
-}
-
-function writeBigUInt256BE(buf: Uint8Array, value: bigint) {
-    for (let i = 31; i >= 0; i--) {
-        buf[i] = Number(value & BigInt(0xff))
-        value >>= BigInt(8)
-    }
-}
-
 function signIT(sender: Uint8Array, contract: Uint8Array, hashFunc: Uint8Array, ct: Uint8Array, signingKey: Uint8Array): Uint8Array {
     const key = new SigningKey(signingKey)
     const message = solidityPackedKeccak256(["bytes", "bytes", "bytes4", "bytes"], [sender, contract, hashFunc, ct])
     const sig = key.sign(message)
-    return new Uint8Array([...getBytes(sig.r), ...getBytes(sig.s), ...getBytes(`0x0${sig.v - 27}`)])
+    return signatureToBytes(sig)
 }
 
 export function prepareIT(
@@ -482,43 +430,22 @@ export function prepareIT(
     contractAddress: string,
     functionSelector: string
 ): itUint {
-    const plaintextBigInt = BigInt(plaintext)
-    const bitSize = plaintextBigInt.toString(2).length
-
-    if (bitSize > MAX_PLAINTEXT_BIT_SIZE / 2) {
-        throw new RangeError("Plaintext size must be 128 bits or smaller. To prepare a 256 bit plaintext, use prepareIT256 instead.")
-    }
-
-    // Convert the plaintext to bytes
-    const plaintextBytes = encodeUint(plaintext)
-
-    // Convert user key to bytes
-    const keyBytes = encodeKey(sender.userKey)
-
-    // Encrypt the plaintext using AES key
-    const { ciphertext, r } = encrypt(keyBytes, plaintextBytes)
-    const ct = new Uint8Array([...ciphertext, ...r])
-
-    // Convert the ciphertext to BigInt
-    const ctInt = decodeUint(ct)
-
-    const signature = signInputText(sender, contractAddress, functionSelector, ctInt);
-
-    return {
-        ciphertext: ctInt,
-        signature: signature
-    }
+    return buildUintInputText(
+        plaintext,
+        sender,
+        contractAddress,
+        functionSelector,
+        128,
+        "Plaintext size must be 128 bits or smaller. To prepare a 256 bit plaintext, use prepareIT256 instead."
+    )
 }
 
 // Helper function to create ciphertext for 128-bit plaintext
 function createCiphertext128(plaintextBigInt: bigint, userAesKey: Uint8Array): Uint8Array {
-    const plaintextBytes = new Uint8Array(BLOCK_SIZE)
-    writeBigUInt128BE(plaintextBytes, plaintextBigInt)
+    const plaintextBytes = bigintToBytesBE(plaintextBigInt, BLOCK_SIZE)
     const { ciphertext, r } = encrypt(userAesKey, plaintextBytes)
 
-    const zero = BigInt(0)
     const zeroBytes = new Uint8Array(BLOCK_SIZE)
-    writeBigUInt128BE(zeroBytes, zero)
     const { ciphertext: ciphertextHigh, r: rHigh } = encrypt(userAesKey, zeroBytes)
 
     return new Uint8Array([...ciphertextHigh, ...rHigh, ...ciphertext, ...r])
@@ -526,11 +453,22 @@ function createCiphertext128(plaintextBigInt: bigint, userAesKey: Uint8Array): U
 
 // Helper function to create ciphertext for 256-bit plaintext
 function createCiphertext256(plaintextBigInt: bigint, userAesKey: Uint8Array): Uint8Array {
-    const plaintextBytes = new Uint8Array(CT_SIZE)
-    writeBigUInt256BE(plaintextBytes, plaintextBigInt)
+    const plaintextBytes = bigintToBytesBE(plaintextBigInt, CT_SIZE)
     const high = encrypt(userAesKey, plaintextBytes.slice(0, BLOCK_SIZE))
     const low = encrypt(userAesKey, plaintextBytes.slice(BLOCK_SIZE))
     return new Uint8Array([...high.ciphertext, ...high.r, ...low.ciphertext, ...low.r])
+}
+
+function encryptUint128Unchecked(plaintext: bigint, userKey: string): ctUint {
+    const { ciphertext, r } = encrypt(encodeKey(userKey), encodeUint(plaintext))
+    return decodeUint(new Uint8Array([...ciphertext, ...r]))
+}
+
+function encryptUint256ToBytes(plaintextBigInt: bigint, userAesKey: Uint8Array): Uint8Array {
+    const bitSize = plaintextBigInt.toString(2).length
+    return bitSize <= MAX_PLAINTEXT_BIT_SIZE / 2
+        ? createCiphertext128(plaintextBigInt, userAesKey)
+        : createCiphertext256(plaintextBigInt, userAesKey)
 }
 
 /**
@@ -542,8 +480,7 @@ export function encryptUint(plaintext: bigint, userKey: string): ctUint {
         throw new RangeError("Plaintext size must be 64 bits or smaller.")
     }
 
-    const { ciphertext, r } = encrypt(encodeKey(userKey), encodeUint(plaintextBigInt))
-    return decodeUint(new Uint8Array([...ciphertext, ...r]))
+    return encryptUint128Unchecked(plaintextBigInt, userKey)
 }
 
 /**
@@ -555,16 +492,7 @@ export function encryptUint256(plaintext: bigint, userKey: string): ctUint256 {
         throw new RangeError("Plaintext size must be 256 bits or smaller.")
     }
 
-    const userAesKey = encodeKey(userKey)
-    const bitSize = plaintextBigInt.toString(2).length
-    const ct = bitSize <= MAX_PLAINTEXT_BIT_SIZE / 2
-        ? createCiphertext128(plaintextBigInt, userAesKey)
-        : createCiphertext256(plaintextBigInt, userAesKey)
-
-    return {
-        ciphertextHigh: decodeUint(ct.slice(0, CT_SIZE)),
-        ciphertextLow: decodeUint(ct.slice(CT_SIZE))
-    }
+    return ciphertextBytesToCtUint256(encryptUint256ToBytes(plaintextBigInt, encodeKey(userKey)))
 }
 
 function toBigInt(value: unknown): bigint {
@@ -619,24 +547,41 @@ function asRecord(value: unknown): Record<string, unknown> & Record<number, unkn
         : null
 }
 
-export function isCtUint256Shape(value: unknown): boolean {
+type ParsedCtUint256 =
+    | { kind: 'nested'; parts: [unknown, unknown, unknown, unknown] }
+    | { kind: 'flat'; high: unknown; low: unknown }
+
+function parseCtUint256Shape(value: unknown): ParsedCtUint256 | null {
     const record = asRecord(value)
     if (!record) {
-        return false
+        return null
     }
 
     const highObj = asRecord(record.high)
     const lowObj = asRecord(record.low)
-    const hasNested =
+    if (
         highObj?.high !== undefined &&
         highObj?.low !== undefined &&
         lowObj?.high !== undefined &&
         lowObj?.low !== undefined
-    const hasFlat =
-        record.ciphertextHigh !== undefined && record.ciphertextLow !== undefined
-    const hasPositional = record[0] !== undefined && record[1] !== undefined
+    ) {
+        return {
+            kind: 'nested',
+            parts: [highObj.high, highObj.low, lowObj.high, lowObj.low]
+        }
+    }
 
-    return hasNested || hasFlat || hasPositional
+    const high = record.ciphertextHigh ?? record[0]
+    const low = record.ciphertextLow ?? record[1]
+    if (high !== undefined && low !== undefined) {
+        return { kind: 'flat', high, low }
+    }
+
+    return null
+}
+
+export function isCtUint256Shape(value: unknown): value is CtUint256Like {
+    return parseCtUint256Shape(value) !== null
 }
 
 export function isZeroCtUint256(ciphertext: unknown): boolean {
@@ -644,67 +589,40 @@ export function isZeroCtUint256(ciphertext: unknown): boolean {
         return true
     }
 
-    const record = asRecord(ciphertext)
-    if (!record) {
+    const parsed = parseCtUint256Shape(ciphertext)
+    if (!parsed) {
         return false
     }
 
-    const highObj = asRecord(record.high)
-    const lowObj = asRecord(record.low)
-    if (
-        highObj?.high !== undefined &&
-        highObj?.low !== undefined &&
-        lowObj?.high !== undefined &&
-        lowObj?.low !== undefined
-    ) {
-        return (
-            isZeroValue(highObj.high) &&
-            isZeroValue(highObj.low) &&
-            isZeroValue(lowObj.high) &&
-            isZeroValue(lowObj.low)
-        )
+    if (parsed.kind === 'nested') {
+        return parsed.parts.every(isZeroValue)
     }
 
-    const high = record.ciphertextHigh ?? record[0]
-    const low = record.ciphertextLow ?? record[1]
-
-    return high !== undefined && low !== undefined && isZeroValue(high) && isZeroValue(low)
+    return isZeroValue(parsed.high) && isZeroValue(parsed.low)
 }
 
 export function decryptCtUint256(ciphertext: unknown, userKey: string): bigint {
-    const record = asRecord(ciphertext)
-    if (!record) {
+    const parsed = parseCtUint256Shape(ciphertext)
+    if (!parsed) {
         throw new Error("Invalid ctUint256 payload.")
     }
 
-    const highObj = asRecord(record.high)
-    const lowObj = asRecord(record.low)
-    if (
-        highObj?.high !== undefined &&
-        highObj?.low !== undefined &&
-        lowObj?.high !== undefined &&
-        lowObj?.low !== undefined
-    ) {
-        const d1 = decryptUint(toBigInt(highObj.high), userKey)
-        const d2 = decryptUint(toBigInt(highObj.low), userKey)
-        const d3 = decryptUint(toBigInt(lowObj.high), userKey)
-        const d4 = decryptUint(toBigInt(lowObj.low), userKey)
+    if (parsed.kind === 'nested') {
+        const [highHigh, highLow, lowHigh, lowLow] = parsed.parts
+        const d1 = decryptUint(toBigInt(highHigh), userKey)
+        const d2 = decryptUint(toBigInt(highLow), userKey)
+        const d3 = decryptUint(toBigInt(lowHigh), userKey)
+        const d4 = decryptUint(toBigInt(lowLow), userKey)
         return (d1 << 192n) + (d2 << 128n) + (d3 << 64n) + d4
     }
 
-    const high = record.ciphertextHigh ?? record[0]
-    const low = record.ciphertextLow ?? record[1]
-    if (high !== undefined && low !== undefined) {
-        return decryptUint256(
-            {
-                ciphertextHigh: toBigInt(high),
-                ciphertextLow: toBigInt(low)
-            },
-            userKey
-        )
-    }
-
-    throw new Error("Invalid ctUint256 payload.")
+    return decryptUint256(
+        {
+            ciphertextHigh: toBigInt(parsed.high),
+            ciphertextLow: toBigInt(parsed.low)
+        },
+        userKey
+    )
 }
 
 export async function buildItUint256WithSigner({
@@ -721,6 +639,9 @@ export async function buildItUint256WithSigner({
     }
 
     const ciphertext = encryptUint256(plaintextBigInt, aesKey)
+    // Browser wallets sign the flat ABI payload. This intentionally differs
+    // from prepareIT256, which signs the raw 64-byte ciphertext for the
+    // private-key path used by legacy helpers.
     const message = solidityPacked(
         ["address", "address", "bytes4", "uint256", "uint256"],
         [
@@ -752,37 +673,17 @@ export function prepareIT256(
         throw new RangeError("Plaintext size must be 256 bits or smaller.")
     }
 
-    const userAesKey = encodeKey(sender.userKey)
     const senderBytes = getBytes(sender.wallet.address)
     const contractBytes = getBytes(contractAddress)
     const hashFuncBytes = getBytes(functionSelector)
     const signingKeyBytes = getBytes(sender.wallet.privateKey)
 
-    // Choose appropriate encryption based on bit size
-    const ct = bitSize <= MAX_PLAINTEXT_BIT_SIZE / 2
-        ? createCiphertext128(plaintextBigInt, userAesKey)
-        : createCiphertext256(plaintextBigInt, userAesKey)
+    const ct = encryptUint256ToBytes(plaintextBigInt, encodeKey(sender.userKey))
 
     const signature = signIT(senderBytes, contractBytes, hashFuncBytes, ct, signingKeyBytes)
-    const ciphertextHigh = ct.slice(0, CT_SIZE)
-    const ciphertextLow = ct.slice(CT_SIZE)
-
-    // Convert Uint8Array to hex string
-    const ciphertextHighHex = Array.from(ciphertextHigh)
-        .map(byte => byte.toString(16).padStart(2, '0'))
-        .join('')
-    const ciphertextLowHex = Array.from(ciphertextLow)
-        .map(byte => byte.toString(16).padStart(2, '0'))
-        .join('')
-
-    const ciphertextHighUint = BigInt('0x' + ciphertextHighHex)
-    const ciphertextLowUint = BigInt('0x' + ciphertextLowHex)
 
     return {
-        ciphertext: {
-            ciphertextHigh: ciphertextHighUint,
-            ciphertextLow: ciphertextLowUint
-        },
+        ciphertext: ciphertextBytesToCtUint256(ct),
         signature
     }
 }
@@ -819,6 +720,11 @@ export function normalizeAesKey(aesKey: string | null | undefined): string {
 /**
  * Builds a COTI input-text (IT) signature over (signer, contract, selector, ciphertext).
  *
+ * @deprecated Use `signInputText` with an ethers `Wallet` for private-key
+ * signing. For browser signers, use `buildItUint256WithSigner` for 256-bit
+ * values. This private-key convenience wrapper will be removed in a future
+ * major version.
+ *
  * @param signerAddress - Address of the signer; must match the address derived from privateKey.
  * @param contractAddress - Target contract address.
  * @param functionSelector - 4-byte function selector (e.g. "0x11223344").
@@ -838,6 +744,5 @@ export function buildItSignature(
     if ( wallet.address.toLowerCase() !== signerAddress.toLowerCase()) {
         throw new Error("Invalid signer: signerAddress does not match the address derived from privateKey");
     }
-    let signature = signInputText({ wallet, userKey: ''}, contractAddress, functionSelector, ciphertext);
-    return hexlify(signature);
+    return hexlify(signItUintDigest(signerAddress, contractAddress, functionSelector, ciphertext, privateKey));
 }

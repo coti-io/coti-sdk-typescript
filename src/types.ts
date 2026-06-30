@@ -16,6 +16,8 @@ export type ctUint = bigint
 
 export type ctString = { value: Array<bigint> }
 
+export type SerializableCtUint = string | number | bigint
+
 
 export type itUint256 = {
     ciphertext: { ciphertextHigh: bigint; ciphertextLow: bigint };
@@ -32,6 +34,11 @@ export type ctUint256Nested = {
     low: { high: bigint; low: bigint };
   };
 
+export type CtUint256Like =
+    | ctUint256
+    | ctUint256Nested
+    | [SerializableCtUint, SerializableCtUint];
+
 export type itUint256Signed = {
     ciphertext: ctUint256;
     signature: string;
@@ -46,9 +53,7 @@ export type BuildItUint256WithSignerParams = {
     signMessage: (message: Uint8Array) => string | Promise<string>;
   };
 
-export type SerializableCtUint = string | number | bigint
-
 export type SerializableCtUint256 = {
-    ciphertextHigh?: string | number | bigint;
-    ciphertextLow?: string | number | bigint;
+    ciphertextHigh?: SerializableCtUint;
+    ciphertextLow?: SerializableCtUint;
   };
