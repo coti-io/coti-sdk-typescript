@@ -27,6 +27,21 @@ npm install
 npm test
 ```
 
+## Deprecations
+
+The following legacy helpers remain available for compatibility, but will be
+removed in a future major version:
+
+- `buildInputText`: use `prepareIT` for unsigned integer input-text values.
+  `buildInputText` is an older 64-bit-only wrapper; `prepareIT` supports the
+  canonical 128-bit `itUint` path.
+- `buildItSignature`: use `signInputText` with an ethers `Wallet` for
+  private-key signing. For browser wallets and 256-bit values, use
+  `buildItUint256WithSigner`.
+
+Do not treat `prepareIT256` and `buildItUint256WithSigner` as interchangeable:
+they intentionally sign different payload formats for different callers.
+
 ---
 
 To report an issue, please see the [issues](https://github.com/coti-io/coti-sdk-typescript/issues/new) tab.
