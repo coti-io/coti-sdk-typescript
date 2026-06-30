@@ -1,4 +1,3 @@
-import { Wallet } from 'ethers'
 import {
     encodeUint,
     decodeUint,
@@ -10,23 +9,7 @@ import {
     decryptUint,
     decryptUint256
 } from '../../src'
-
-// Load test constants from environment variables
-const TEST_CONSTANTS = {
-    PRIVATE_KEY: process.env.TEST_PRIVATE_KEY || '',
-    USER_KEY: process.env.TEST_USER_KEY || '',
-    CONTRACT_ADDRESS: '0x0000000000000000000000000000000000000001',
-    FUNCTION_SELECTOR: '0x11223344'
-}
-
-const HAS_ENV = !!(TEST_CONSTANTS.PRIVATE_KEY && TEST_CONSTANTS.USER_KEY)
-
-function createTestSender() {
-    return {
-        wallet: new Wallet(TEST_CONSTANTS.PRIVATE_KEY),
-        userKey: TEST_CONSTANTS.USER_KEY
-    }
-}
+import { createTestSender, TEST_CONSTANTS } from '../helpers'
 
 /**
  * Generates a random BigInt within the specified bit range.
@@ -61,8 +44,7 @@ function randomHexKey(): string {
  * randomized inputs. These address TESTS.md recommendation #4:
  * "Property-based round-trip tests for encodeUint/decodeUint"
  */
-const describeWithEnv = HAS_ENV ? describe : describe.skip
-describeWithEnv('Unit: Property-Based Round-Trip Tests', () => {
+describe('Unit: Property-Based Round-Trip Tests', () => {
 
     describe('encodeUint / decodeUint invertibility', () => {
         // Test with 50 random BigInts to verify: decodeUint(encodeUint(x)) === x

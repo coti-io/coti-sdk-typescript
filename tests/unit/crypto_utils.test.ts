@@ -22,6 +22,7 @@ import {
     signInputText
 } from '../../src'
 import forge from 'node-forge'
+import { createTestSender, TEST_CONSTANTS } from '../helpers'
 
 jest.mock('node-forge', () => {
     const defaultForge = jest.requireActual('node-forge');
@@ -36,26 +37,6 @@ jest.mock('node-forge', () => {
 });
 
 (forge.random.getBytesSync as jest.Mock).mockReturnValue("ABCDEFGHIJKLMNOP")
-
-// Test fixtures and helper functions to reduce duplication
-// Load test constants from environment variables
-const TEST_CONSTANTS = {
-    PRIVATE_KEY: process.env.TEST_PRIVATE_KEY || '',
-    USER_KEY: process.env.TEST_USER_KEY || '',
-    // Use hardcoded test values for contract address and function selector
-    // These are just test values and don't need to be in .env
-    CONTRACT_ADDRESS: '0x0000000000000000000000000000000000000001',
-    FUNCTION_SELECTOR: '0x11223344'
-}
-
-const HAS_ENV = !!(TEST_CONSTANTS.PRIVATE_KEY && TEST_CONSTANTS.USER_KEY)
-
-function createTestSender() {
-    return {
-        wallet: new Wallet(TEST_CONSTANTS.PRIVATE_KEY),
-        userKey: TEST_CONSTANTS.USER_KEY
-    }
-}
 
 function testPrepareITWithBitSize(bitSize: number, description: string) {
     test(`build input text with ${description}`, () => {
@@ -180,8 +161,7 @@ function testPrepareIT256Decrypt(plaintext: bigint) {
     expect(decrypted).toEqual(plaintext)
 }
 
-const describeWithEnv = HAS_ENV ? describe : describe.skip
-describeWithEnv('crypto_utils', () => {
+describe('crypto_utils', () => {
     test('encodeString - basic encoding of a string as a Uint8Array', () => {
         const S = "Hello, world!"
         const ENCODED_S = new Uint8Array([72, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 33])

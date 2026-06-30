@@ -1,10 +1,11 @@
-import { Wallet, recoverAddress, solidityPackedKeccak256, hexlify } from 'ethers'
+import { recoverAddress, solidityPackedKeccak256, hexlify } from 'ethers'
 import {
     prepareIT,
     prepareIT256,
     buildStringInputText,
     signInputText
 } from '../../src'
+import { createTestSender, TEST_CONSTANTS } from '../helpers'
 
 /**
  * Signature Tampering Tests - TESTS.md Recommendation #7
@@ -14,23 +15,6 @@ import {
  * are modified after signing. This validates the security guarantees
  * of the signature scheme used in the SDK.
  */
-
-// Load test constants from environment variables
-const TEST_CONSTANTS = {
-    PRIVATE_KEY: process.env.TEST_PRIVATE_KEY || '',
-    USER_KEY: process.env.TEST_USER_KEY || '',
-    CONTRACT_ADDRESS: '0x0000000000000000000000000000000000000001',
-    FUNCTION_SELECTOR: '0x11223344'
-}
-
-const HAS_ENV = !!(TEST_CONSTANTS.PRIVATE_KEY && TEST_CONSTANTS.USER_KEY)
-
-function createTestSender() {
-    return {
-        wallet: new Wallet(TEST_CONSTANTS.PRIVATE_KEY),
-        userKey: TEST_CONSTANTS.USER_KEY
-    }
-}
 
 /**
  * Helper: recovers the signer address from a 65-byte signature
@@ -43,8 +27,7 @@ function recoverSigner(messageHash: string, signature: Uint8Array): string {
     return recoverAddress(messageHash, { r, s, v }).toLowerCase()
 }
 
-const describeWithEnv = HAS_ENV ? describe : describe.skip
-describeWithEnv('Integration: Signature Tampering Detection', () => {
+describe('Integration: Signature Tampering Detection', () => {
     let sender: ReturnType<typeof createTestSender>
     let expectedAddress: string
 
