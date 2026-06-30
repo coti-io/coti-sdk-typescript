@@ -1,6 +1,6 @@
 import { ctUint256 } from './types'
 
-const HEX_BASE = 16
+export const HEX_BASE = 16
 export const CT_SIZE = 32
 
 export function bigintToBytesBE(value: bigint, width: number): Uint8Array {

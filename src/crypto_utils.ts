@@ -1,10 +1,9 @@
 import forge from 'node-forge'
-import { BaseWallet, getBytes, SigningKey, solidityPacked, solidityPackedKeccak256, hexlify, Wallet } from "ethers"
-import { BuildItUint256WithSignerParams, CtUint256Like, ctString, ctUint, ctUint256, itString, itUint, itUint256, itUint256Signed, SerializableCtUint, SerializableCtUint256 } from './types';
-import { bigintToBytesBE, bytesToBigint, bytesToHex, ciphertextBytesToCtUint256, CT_SIZE, ctUint256ToBytes, ctUintToBytes } from './bytes';
+import { BaseWallet, getBytes, SigningKey, solidityPacked, solidityPackedKeccak256, hexlify, Wallet } from 'ethers'
+import { BuildItUint256WithSignerParams, CtUint256Like, ctString, ctUint, ctUint256, itString, itUint, itUint256, itUint256Signed, SerializableCtUint, SerializableCtUint256 } from './types'
+import { bigintToBytesBE, bytesToBigint, bytesToHex, ciphertextBytesToCtUint256, CT_SIZE, ctUint256ToBytes, ctUintToBytes, HEX_BASE } from './bytes'
 
 const BLOCK_SIZE = 16 // AES block size in bytes
-const HEX_BASE = 16
 const EIGHT_BYTES = 8
 const MAX_PLAINTEXT_BIT_SIZE = 256
 
@@ -415,6 +414,34 @@ function toForgeBinaryString(value: string | Uint8Array): string {
     return typeof value === 'string' ? value : bytesToBinaryString(value)
 }
 
+/**
+ * Validates and normalizes an AES key: ensures it is present, strips the "0x"
+ * prefix, and lowercases it. COTI uses a 128-bit AES key, so only 32-character
+ * hex strings are accepted.
+ *
+ * @param aesKey - The AES key, optionally prefixed with "0x".
+ * @returns The normalized lowercase hex string.
+ * @throws Error if the key is empty/null/undefined, contains non-hex characters, or is not 32 hex characters.
+ */
+export function normalizeAesKey(aesKey: string | null | undefined): string {
+    if (!aesKey) {
+        throw new Error("AES key is required")
+    }
+
+    const trimmed = aesKey.startsWith("0x") ? aesKey.slice(2) : aesKey
+    const lowered = trimmed.toLowerCase()
+
+    if (!/^[0-9a-f]+$/.test(lowered)) {
+        throw new Error("Invalid AES key: contains non-hexadecimal characters")
+    }
+
+    if (lowered.length !== 32) {
+        throw new Error(`Invalid AES key: expected 32 hex characters (128-bit), got ${lowered.length}`)
+    }
+
+    return lowered
+}
+
 export function encodeKey(userKey: string): Uint8Array {
     // Validate and normalize the key (strips "0x", lowercases, enforces 128-bit)
     // so that every encrypt/decrypt path rejects malformed keys consistently
@@ -744,35 +771,6 @@ export function prepareIT256(
         signature
     }
 }
-// ------------- Wallet Plugin Additions -------------
-
-/**
- * Validates and normalizes an AES key: ensures it is present, strips the "0x"
- * prefix, and lowercases it. COTI uses a 128-bit AES key, so only 32-character
- * hex strings are accepted.
- *
- * @param aesKey - The AES key, optionally prefixed with "0x".
- * @returns The normalized lowercase hex string.
- * @throws Error if the key is empty/null/undefined, contains non-hex characters, or is not 32 hex characters.
- */
-export function normalizeAesKey(aesKey: string | null | undefined): string {
-    if (!aesKey) {
-        throw new Error("AES key is required")
-    }
-
-    const trimmed = aesKey.startsWith("0x") ? aesKey.slice(2) : aesKey
-    const lowered = trimmed.toLowerCase()
-
-    if (!/^[0-9a-f]+$/.test(lowered)) {
-        throw new Error("Invalid AES key: contains non-hexadecimal characters")
-    }
-
-    if (lowered.length !== 32) {
-        throw new Error(`Invalid AES key: expected 32 hex characters (128-bit), got ${lowered.length}`)
-    }
-
-    return lowered
-}
 
 /**
  * Builds a COTI input-text (IT) signature over (signer, contract, selector, ciphertext).
@@ -797,9 +795,9 @@ export function buildItSignature(
     ciphertext: bigint,
     privateKey: string
 ): string {
-    const wallet = new Wallet(privateKey);
-    if ( wallet.address.toLowerCase() !== signerAddress.toLowerCase()) {
-        throw new Error("Invalid signer: signerAddress does not match the address derived from privateKey");
+    const wallet = new Wallet(privateKey)
+    if (wallet.address.toLowerCase() !== signerAddress.toLowerCase()) {
+        throw new Error("Invalid signer: signerAddress does not match the address derived from privateKey")
     }
-    return hexlify(signItUintDigest(signerAddress, contractAddress, functionSelector, ciphertext, privateKey));
+    return hexlify(signItUintDigest(signerAddress, contractAddress, functionSelector, ciphertext, privateKey))
 }
