@@ -26,3 +26,10 @@ export type ctUint256 = {
     ciphertextHigh: bigint;
     ciphertextLow: bigint;
   };
+
+export type SerializableCtUint = string | number | bigint
+
+export type SerializableCtUint256 = {
+    ciphertextHigh?: string | number | bigint;
+    ciphertextLow?: string | number | bigint;
+  };
