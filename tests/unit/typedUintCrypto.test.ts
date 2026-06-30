@@ -112,6 +112,12 @@ describe('typed uint ciphertext helpers', () => {
             expect(normalizeCtPayload(456n, 'ctUint64')).toBe(456n)
         })
 
+        test('rejects object payloads for ctUint64', () => {
+            expect(() => normalizeCtPayload({} as any, 'ctUint64')).toThrow(
+                'Invalid bigint value.'
+            )
+        })
+
         test('normalizes ctUint256 payloads', () => {
             expect(
                 normalizeCtPayload(

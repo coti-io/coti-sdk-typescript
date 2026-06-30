@@ -577,9 +577,6 @@ function toBigInt(value: unknown): bigint {
     if (typeof value === 'number' || typeof value === 'string') {
         return BigInt(value)
     }
-    if (typeof value === 'object' && 'toString' in value && typeof value.toString === 'function') {
-        return BigInt(value.toString())
-    }
     throw new Error("Invalid bigint value.")
 }
 
