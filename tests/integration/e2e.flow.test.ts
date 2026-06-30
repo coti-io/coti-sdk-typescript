@@ -26,7 +26,7 @@ describe('Integration: End-to-End Flows', () => {
             expect(typeof ciphertext).toBe('bigint')
             expect(ciphertext).toBeGreaterThan(0n)
             expect(signature).toBeInstanceOf(Uint8Array)
-            expect(signature.length).toBe(65)
+            expect(signature).toHaveLength(65)
 
             // Step 3: Decrypt and verify
             const decrypted = decryptUint(ciphertext, sender.userKey)
@@ -107,7 +107,7 @@ describe('Integration: End-to-End Flows', () => {
             expect(ciphertext).toHaveProperty('ciphertextLow')
             expect(typeof ciphertext.ciphertextHigh).toBe('bigint')
             expect(typeof ciphertext.ciphertextLow).toBe('bigint')
-            expect(signature.length).toBe(65)
+            expect(signature).toHaveLength(65)
 
             // Decrypt and verify
             const decrypted = decryptUint256(ciphertext, sender.userKey)
@@ -187,7 +187,7 @@ describe('Integration: End-to-End Flows', () => {
             expect(ciphertext).toHaveProperty('value')
             expect(Array.isArray(ciphertext.value)).toBe(true)
             expect(Array.isArray(signature)).toBe(true)
-            expect(ciphertext.value.length).toBe(signature.length)
+            expect(ciphertext.value).toHaveLength(signature.length)
 
             // Decrypt and verify
             const decrypted = decryptString(ciphertext, sender.userKey)

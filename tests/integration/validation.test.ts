@@ -330,7 +330,7 @@ describe('Integration: Input Validation', () => {
             // This will cause a type error
             try {
                 const result = decryptUint(ciphertext as any, TEST_CONSTANTS.USER_KEY)
-                expect(result).not.toBe('Hello')
+                expect(typeof result).toBe('bigint')
             } catch (e) {
                 // Throwing is acceptable
                 expect(e).toBeDefined()

@@ -81,7 +81,7 @@ describe('Unit: Property-Based Round-Trip Tests', () => {
             const values = [0n, 1n, 255n, 65535n, (2n ** 64n) - 1n, (2n ** 128n) - 1n]
             for (const v of values) {
                 const encoded = encodeUint(v)
-                expect(encoded.length).toBe(16)
+                expect(encoded).toHaveLength(16)
             }
         })
     })
@@ -98,7 +98,7 @@ describe('Unit: Property-Based Round-Trip Tests', () => {
                 const result1 = encodeKey(key)
                 const result2 = encodeKey(key)
                 expect(result1).toEqual(result2)
-                expect(result1.length).toBe(16)
+                expect(result1).toHaveLength(16)
             }
         })
 

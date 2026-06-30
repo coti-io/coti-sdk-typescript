@@ -17,7 +17,7 @@ describe('Integration: Signature Verification', () => {
             )
 
             expect(signature).toBeInstanceOf(Uint8Array)
-            expect(signature.length).toBe(65) // r(32 bytes) + s(32 bytes) + v(1 byte)
+            expect(signature).toHaveLength(65) // r(32 bytes) + s(32 bytes) + v(1 byte)
         })
 
         test('signature changes when plaintext changes', () => {
@@ -103,8 +103,8 @@ describe('Integration: Signature Verification', () => {
             )
 
             // Note: Signatures will differ due to random encryption, but format should be consistent
-            expect(sig1.length).toBe(sig2.length)
-            expect(sig1.length).toBe(65)
+            expect(sig1).toHaveLength(sig2.length)
+            expect(sig1).toHaveLength(65)
         })
     })
 
@@ -119,7 +119,7 @@ describe('Integration: Signature Verification', () => {
             )
 
             expect(signature).toBeInstanceOf(Uint8Array)
-            expect(signature.length).toBe(65)
+            expect(signature).toHaveLength(65)
         })
 
         test('signature changes when plaintext changes', () => {
@@ -161,8 +161,8 @@ describe('Integration: Signature Verification', () => {
             )
 
             // Note: Signatures will differ due to random encryption, but format should be consistent
-            expect(sig1.length).toBe(sig2.length)
-            expect(sig1.length).toBe(65)
+            expect(sig1).toHaveLength(sig2.length)
+            expect(sig1).toHaveLength(65)
         })
     })
 
@@ -181,7 +181,7 @@ describe('Integration: Signature Verification', () => {
 
             signature.forEach((sig) => {
                 expect(sig).toBeInstanceOf(Uint8Array)
-                expect(sig.length).toBe(65)
+                expect(sig).toHaveLength(65)
             })
         })
 
@@ -194,7 +194,7 @@ describe('Integration: Signature Verification', () => {
                 TEST_CONSTANTS.FUNCTION_SELECTOR
             )
 
-            expect(signature.length).toBe(ciphertext.value.length)
+            expect(signature).toHaveLength(ciphertext.value.length)
         })
 
         test('signatures change when string changes', () => {
@@ -236,13 +236,13 @@ describe('Integration: Signature Verification', () => {
             )
 
             // Note: Signatures will differ due to random encryption, but format should be consistent
-            expect(sig1.length).toBe(sig2.length)
+            expect(sig1).toHaveLength(sig2.length)
             expect(sig1.length).toBeGreaterThan(0)
             sig1.forEach((sig, idx) => {
                 expect(sig).toBeInstanceOf(Uint8Array)
-                expect(sig.length).toBe(65)
+                expect(sig).toHaveLength(65)
                 expect(sig2[idx]).toBeInstanceOf(Uint8Array)
-                expect(sig2[idx].length).toBe(65)
+                expect(sig2[idx]).toHaveLength(65)
             })
         })
     })
