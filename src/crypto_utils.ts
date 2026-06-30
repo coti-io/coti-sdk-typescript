@@ -57,7 +57,7 @@ export function encrypt(key: Uint8Array, plaintext: Uint8Array): { ciphertext: U
 
     return {
         ciphertext,
-        r: encodeString(r)
+        r: binaryStringToBytes(r)
     }
 }
 
@@ -130,8 +130,8 @@ export function generateRSAKeyPair(): { publicKey: Uint8Array; privateKey: Uint8
     const publicKey = forge.asn1.toDer(forge.pki.publicKeyToAsn1(rsaKeyPair.publicKey)).data
 
     return {
-        privateKey: encodeString(privateKey),
-        publicKey: encodeString(publicKey)
+        privateKey: binaryStringToBytes(privateKey),
+        publicKey: binaryStringToBytes(publicKey)
     }
 }
 
@@ -146,7 +146,7 @@ export function decryptRSA(privateKey: Uint8Array, ciphertext: string): string {
         md: forge.md.sha256.create()
     });
 
-    const decryptedBytes = encodeString(decrypted)
+    const decryptedBytes = binaryStringToBytes(decrypted)
 
     return bytesToHex(decryptedBytes)
 }
@@ -290,7 +290,11 @@ export function buildStringInputText(
 }
 
 /**
- * Decrypts a 64-bit ctUint ciphertext using the user's AES key.
+ * Decrypts a ctUint ciphertext using the user's AES key.
+ *
+ * `ctUint` is stored on-chain as a bigint packing 32 bytes (16-byte AES
+ * ciphertext + 16-byte random `r`). This function decrypts to a plaintext
+ * of up to 64 bits. For 128-bit input-text values use `prepareIT` instead.
  *
  * - A zero ciphertext is short-circuited to `0n` without validating the key,
  *   since it represents uninitialized/empty on-chain storage. This allows DApps
@@ -300,9 +304,9 @@ export function buildStringInputText(
  *   (strips "0x", lowercases, enforces 128-bit hex). Invalid keys throw
  *   rather than producing garbage.
  *
- * @param ciphertext - The encrypted 64-bit value (bigint).
+ * @param ciphertext - The ctUint value (32-byte wire format as a bigint).
  * @param userKey - The AES key (32 hex chars, optionally "0x"-prefixed).
- * @returns The decrypted plaintext as a bigint.
+ * @returns The decrypted plaintext as a bigint (up to 64 bits).
  * @throws Error if the key is invalid (null, wrong length, non-hex) and ciphertext is non-zero.
  */
 export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
@@ -368,13 +372,39 @@ export function decryptString(ciphertext: ctString, userKey: string): string {
     return decoder.decode(new Uint8Array(allBytes.slice(0, end)))
 }
 
-export function generateRandomAesKeySizeNumber(): string {
+/**
+ * Generates 16 bytes of cryptographically random AES key material as a
+ * node-forge binary string (each character's code point is one byte 0–255).
+ * Convert to hex with `Buffer.from(value, "binary").toString("hex")` when needed.
+ */
+export function generateRandomAesKeyBinaryString(): string {
     return forge.random.getBytesSync(BLOCK_SIZE)
 }
 
+/**
+ * @deprecated Use {@link generateRandomAesKeyBinaryString} instead. Despite the
+ * name, the return value is a 16-byte binary string, not a numeric or hex value.
+ */
+export function generateRandomAesKeySizeNumber(): string {
+    return generateRandomAesKeyBinaryString()
+}
+
+/**
+ * Converts a node-forge binary string into a `Uint8Array`.
+ *
+ * In forge binary strings each character's Unicode code point represents one
+ * byte (0–255). This is **not** UTF-8 encoding of human-readable text.
+ */
+export function binaryStringToBytes(binaryString: string): Uint8Array {
+    return new Uint8Array(Array.from(binaryString, (char) => Number.parseInt(char.codePointAt(0)?.toString(HEX_BASE)!, HEX_BASE)))
+}
+
+/**
+ * @deprecated Use {@link binaryStringToBytes} instead. Despite the name, this does
+ * not UTF-8-encode a string; it converts a forge binary string to bytes.
+ */
 export function encodeString(str: string): Uint8Array {
-    // Use iterable directly without converting to array first
-    return new Uint8Array(Array.from(str, (char) => Number.parseInt(char.codePointAt(0)?.toString(HEX_BASE)!, HEX_BASE)))
+    return binaryStringToBytes(str)
 }
 
 function bytesToBinaryString(bytes: Uint8Array): string {
@@ -419,7 +449,7 @@ export function encryptNumber(r: string | Uint8Array, key: Uint8Array) {
     cipher.finish()
 
     // Get the encrypted random value 'r' and ensure it's exactly 16 bytes
-    const encryptedR = encodeString(cipher.output.data).slice(0, BLOCK_SIZE)
+    const encryptedR = binaryStringToBytes(cipher.output.data).slice(0, BLOCK_SIZE)
 
     return encryptedR
 }
@@ -476,7 +506,11 @@ function encryptUint256ToBytes(plaintextBigInt: bigint, userAesKey: Uint8Array):
 }
 
 /**
- * Encrypts an unsigned 64-bit value into a ctUint ciphertext without building an IT signature.
+ * Encrypts an unsigned value into a ctUint ciphertext without building an IT signature.
+ *
+ * Plaintext must fit in 64 bits. The resulting `ctUint` bigint packs 32 bytes
+ * on the wire (16-byte ciphertext + 16-byte random `r`). For 128-bit input-text
+ * values use `prepareIT` instead.
  */
 export function encryptUint(plaintext: bigint, userKey: string): ctUint {
     return encryptUint128Unchecked(

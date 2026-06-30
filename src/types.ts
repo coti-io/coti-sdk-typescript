@@ -12,8 +12,21 @@ export type itString = { ciphertext: { value: Array<bigint> }, signature: Array<
 
 export type ctBool = bigint
 
+/**
+ * On-chain encrypted integer (COTI ctUint64).
+ *
+ * Stored as a single `bigint` packing **32 bytes**: a 16-byte AES ciphertext
+ * followed by a 16-byte random `r`. Plaintext bit width depends on the API:
+ *
+ * - {@link encryptUint} / {@link decryptUint} / {@link buildInputText}: up to **64-bit** plaintext
+ * - {@link prepareIT}: up to **128-bit** plaintext (same 32-byte wire format)
+ *
+ * The type name `ctUint` reflects the on-chain ctUint64 type; do not assume the
+ * bigint's magnitude equals the plaintext — it encodes the full ciphertext blob.
+ */
 export type ctUint = bigint
 
+/** String ciphertext: an array of {@link ctUint} chunks (8-byte UTF-8 segments). */
 export type ctString = { value: Array<bigint> }
 
 export type SerializableCtUint = string | number | bigint

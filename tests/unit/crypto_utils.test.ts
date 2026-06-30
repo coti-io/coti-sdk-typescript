@@ -2,6 +2,7 @@ import { Wallet, recoverAddress, solidityPackedKeccak256, hexlify } from 'ethers
 import {
     buildInputText,
     buildStringInputText,
+    binaryStringToBytes,
     decodeUint,
     decrypt,
     decryptRSA,
@@ -13,6 +14,7 @@ import {
     encodeUint,
     encrypt,
     encryptNumber,
+    generateRandomAesKeyBinaryString,
     generateRandomAesKeySizeNumber,
     generateRSAKeyPair,
     prepareIT,
@@ -162,21 +164,25 @@ function testPrepareIT256Decrypt(plaintext: bigint) {
 }
 
 describe('crypto_utils', () => {
-    test('encodeString - basic encoding of a string as a Uint8Array', () => {
+    test('binaryStringToBytes - converts a forge binary string to Uint8Array', () => {
         const S = "Hello, world!"
         const ENCODED_S = new Uint8Array([72, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 33])
 
-        const encoded = encodeString(S)
+        const encoded = binaryStringToBytes(S)
 
         expect(encoded).toEqual(ENCODED_S)
     })
 
-    test('encodeString - asserts limitation with multi-byte characters (overflow)', () => {
+    test('binaryStringToBytes - truncates code points above 255', () => {
         const S = "🚀" // U+1F680 (128640)
-        // codePointAt(0) is 128640. UInt8Array(1) will store [128640 % 256] = [128]
-        const encoded = encodeString(S)
+        const encoded = binaryStringToBytes(S)
         expect(encoded).toHaveLength(1)
-        expect(encoded[0]).toBe(128) // Known limitation: overflows for multi-byte characters (128640 % 256 = 128)
+        expect(encoded[0]).toBe(128)
+    })
+
+    test('encodeString - deprecated alias of binaryStringToBytes', () => {
+        const S = "Hello, world!"
+        expect(encodeString(S)).toEqual(binaryStringToBytes(S))
     })
 
     test('encodeKey - basic encoding of an AES key as a Uint8Array', () => {
@@ -1210,20 +1216,21 @@ describe('crypto_utils', () => {
         })
     })
 
-    describe('generateRandomAesKeySizeNumber', () => {
-        test('generateRandomAesKeySizeNumber - generates 16-byte random value', () => {
-            const randomKey = generateRandomAesKeySizeNumber()
+    describe('generateRandomAesKeyBinaryString', () => {
+        test('generates 16-byte random binary string', () => {
+            const randomKey = generateRandomAesKeyBinaryString()
 
-            // Verify it's a string
             expect(typeof randomKey).toBe('string')
-
-            // Verify it's exactly 16 bytes (16 characters since it's a string of bytes)
             expect(randomKey).toHaveLength(16)
         })
 
-        test('generateRandomAesKeySizeNumber - generates different values on each call', () => {
-            const key1 = generateRandomAesKeySizeNumber()
-            const key2 = generateRandomAesKeySizeNumber()
+        test('generateRandomAesKeySizeNumber - deprecated alias', () => {
+            expect(generateRandomAesKeySizeNumber()).toEqual(generateRandomAesKeyBinaryString())
+        })
+
+        test('generates different values on each call', () => {
+            const key1 = generateRandomAesKeyBinaryString()
+            const key2 = generateRandomAesKeyBinaryString()
 
             // Note: In this test environment, forge.random.getBytesSync is mocked
             // to return a fixed value, so both keys will be the same.
@@ -1234,15 +1241,10 @@ describe('crypto_utils', () => {
             expect(key2).toHaveLength(16)
         })
 
-        test('generateRandomAesKeySizeNumber - can be used as AES key material', () => {
-            const randomKey = generateRandomAesKeySizeNumber()
+        test('can be used as AES key material', () => {
+            const randomKey = generateRandomAesKeyBinaryString()
 
-            // Verify it can be encoded as a key (though it's already in string format)
-            // The function returns raw bytes as a string, which can be used for key generation
             expect(randomKey).toHaveLength(16)
-
-            // Each character should be a valid byte (though as string representation)
-            // The actual implementation uses forge.random.getBytesSync which returns binary string
         })
     })
 })

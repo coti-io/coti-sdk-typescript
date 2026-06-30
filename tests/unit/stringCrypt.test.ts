@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 import { 
     buildStringInputText, 
     decryptString, 
-    generateRandomAesKeySizeNumber 
+    generateRandomAesKeyBinaryString 
 } from "../../src/crypto_utils";
 
 describe("String Encryption and Decryption (decryptString)", () => {
@@ -14,9 +14,9 @@ describe("String Encryption and Decryption (decryptString)", () => {
 
     beforeAll(() => {
         wallet = ethers.Wallet.createRandom();
-        // generateRandomAesKeySizeNumber() returns 16 raw bytes (a binary string).
+        // generateRandomAesKeyBinaryString() returns 16 raw bytes (a forge binary string).
         // The SDK's documented AES key format is 32 hex chars, so convert it.
-        userKey = Buffer.from(generateRandomAesKeySizeNumber(), "binary").toString("hex");
+        userKey = Buffer.from(generateRandomAesKeyBinaryString(), "binary").toString("hex");
         sender = { wallet, userKey };
     });
 

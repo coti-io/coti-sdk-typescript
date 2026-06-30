@@ -38,6 +38,17 @@ removed in a future major version:
 - `buildItSignature`: use `signInputText` with an ethers `Wallet` for
   private-key signing. For browser wallets and 256-bit values, use
   `buildItUint256WithSigner`.
+- `encodeString`: use `binaryStringToBytes`. The old name suggests UTF-8
+  encoding, but the function converts a node-forge binary string to bytes.
+- `generateRandomAesKeySizeNumber`: use `generateRandomAesKeyBinaryString`.
+  The old name suggests a numeric value; it returns a 16-byte binary string.
+
+### ctUint naming
+
+`ctUint` (COTI ctUint64) is a `bigint` that packs **32 bytes** of ciphertext
+material on-chain, not a 64-bit plaintext value. Plaintext limits depend on the
+API: `encryptUint`/`decryptUint` accept up to 64-bit plaintext; `prepareIT`
+accepts up to 128-bit plaintext using the same wire format.
 
 Do not treat `prepareIT256` and `buildItUint256WithSigner` as interchangeable:
 they intentionally sign different payload formats for different callers.
