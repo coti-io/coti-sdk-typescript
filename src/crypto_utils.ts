@@ -716,13 +716,7 @@ export async function buildItUint256WithSigner({
     functionSelector,
     signMessage
 }: BuildItUint256WithSignerParams): Promise<itUint256Signed> {
-    const plaintextBigInt = assertUintInRange(
-        value,
-        MAX_PLAINTEXT_BIT_SIZE,
-        "Plaintext size must be 256 bits or smaller."
-    )
-
-    const ciphertext = encryptUint256(plaintextBigInt, aesKey)
+    const ciphertext = encryptUint256(value, aesKey)
     // Browser wallets sign the flat ABI payload. This intentionally differs
     // from prepareIT256, which signs the raw 64-byte ciphertext for the
     // private-key path used by legacy helpers.
