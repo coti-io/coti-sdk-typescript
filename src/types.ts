@@ -27,6 +27,25 @@ export type ctUint256 = {
     ciphertextLow: bigint;
   };
 
+export type ctUint256Nested = {
+    high: { high: bigint; low: bigint };
+    low: { high: bigint; low: bigint };
+  };
+
+export type itUint256Signed = {
+    ciphertext: ctUint256;
+    signature: string;
+  };
+
+export type BuildItUint256WithSignerParams = {
+    value: bigint;
+    aesKey: string;
+    signerAddress: string;
+    contractAddress: string;
+    functionSelector: string;
+    signMessage: (message: Uint8Array) => string | Promise<string>;
+  };
+
 export type SerializableCtUint = string | number | bigint
 
 export type SerializableCtUint256 = {
