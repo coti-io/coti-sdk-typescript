@@ -89,3 +89,20 @@ export type SerializableCtUint256 =
         ciphertextLow?: SerializableCtUint;
       }
     | [SerializableCtUint, SerializableCtUint];
+
+/**
+ * On-chain encrypted signed 256-bit integer.
+ *
+ * Wire format is identical to {@link ctUint256}; plaintext is interpreted as
+ * two's-complement int256 after decryption.
+ */
+export type ctInt256 = {
+    ciphertextHigh: bigint;
+    ciphertextLow: bigint;
+};
+
+/** Signed 256-bit input text for smart contract submission (private-key path). */
+export type itInt256 = {
+    ciphertext: ctInt256;
+    signature: Uint8Array;
+};

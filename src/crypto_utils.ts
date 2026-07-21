@@ -1,6 +1,6 @@
 import forge from 'node-forge'
 import { BaseWallet, getBytes, SigningKey, solidityPacked, solidityPackedKeccak256, hexlify, Wallet } from 'ethers'
-import { BuildItUint256WithSignerParams, CtUint256Like, ctString, ctUint, ctUint256, itString, itUint, itUint256, itUint256Signed, SerializableCtUint, SerializableCtUint256 } from './types'
+import { BuildItUint256WithSignerParams, CtUint256Like, ctInt256, ctString, ctUint, ctUint256, itInt256, itString, itUint, itUint256, itUint256Signed, SerializableCtUint, SerializableCtUint256 } from './types'
 import { bigintToBytesBE, bytesToBigint, bytesToHex, ciphertextBytesToCtUint256, CT_SIZE, ctUint256ToBytes, ctUintToBytes, HEX_BASE } from './bytes'
 
 const BLOCK_SIZE = 16 // AES block size in bytes
@@ -13,6 +13,27 @@ function assertUintInRange(plaintext: bigint, maxBits: number, errorMessage: str
         throw new RangeError(errorMessage)
     }
     return value
+}
+
+function assertIntInRange(plaintext: bigint, bits: number, errorMessage: string): bigint {
+    const value = BigInt(plaintext)
+    const min = -(1n << BigInt(bits - 1))
+    const max = (1n << BigInt(bits - 1)) - 1n
+    if (value < min || value > max) {
+        throw new RangeError(errorMessage)
+    }
+    return value
+}
+
+/** Maps a signed plaintext into unsigned two's-complement bits for AES encrypt. */
+function toTwosComplementUint(plaintext: bigint, bits: number): bigint {
+    return plaintext < 0n ? (1n << BigInt(bits)) + plaintext : plaintext
+}
+
+/** Interprets an unsigned ciphertext plaintext as signed two's-complement. */
+function fromTwosComplementUint(unsigned: bigint, bits: number): bigint {
+    const signBit = 1n << BigInt(bits - 1)
+    return unsigned >= signBit ? unsigned - (1n << BigInt(bits)) : unsigned
 }
 
 function assertAesKeySize(key: Uint8Array): void {
@@ -710,8 +731,8 @@ export function encryptUint(plaintext: bigint, userKey: string): ctUint {
  * Encrypts an unsigned value into a {@link ctUint256} without building an IT signature.
  *
  * Values up to 128 bits use compact encoding; larger values up to 256 bits use
- * full two-block encoding. For signed submission use {@link prepareIT256} or
- * {@link buildItUint256WithSigner} instead.
+ * full two-block encoding. For signed submission use {@link prepareIT256},
+ * {@link prepareSignedIT256}, or {@link buildItUint256WithSigner} instead.
  *
  * @param plaintext - Unsigned value up to 256 bits.
  * @param userKey - AES key (32 hex chars, optionally `0x`-prefixed).
@@ -996,6 +1017,74 @@ export function prepareIT256(
         ciphertext: ciphertextBytesToCtUint256(ct),
         signature
     }
+}
+
+/**
+ * Encrypts a signed int256 into a {@link ctInt256} without building an IT signature.
+ *
+ * Negative values are encoded as 256-bit two's complement, then encrypted with
+ * the same wire format as {@link encryptUint256}.
+ *
+ * @param plaintext - Signed value in `[-(2^255), 2^255 - 1]`.
+ * @param userKey - AES key (32 hex chars, optionally `0x`-prefixed).
+ * @returns Encrypted ctInt256 ciphertext.
+ * @throws RangeError if `plaintext` is outside int256 range.
+ * @throws Error if the key is invalid.
+ */
+export function encryptInt256(plaintext: bigint, userKey: string): ctInt256 {
+    const value = assertIntInRange(
+        plaintext,
+        MAX_PLAINTEXT_BIT_SIZE,
+        "Plaintext size must fit in int256."
+    )
+    return encryptUint256(toTwosComplementUint(value, MAX_PLAINTEXT_BIT_SIZE), userKey)
+}
+
+/**
+ * Decrypts a {@link ctInt256} ciphertext and returns the signed plaintext.
+ *
+ * @param ciphertext - Encrypted int256 (same wire shape as ctUint256).
+ * @param userKey - AES key (32 hex chars, optionally `0x`-prefixed).
+ * @returns Signed plaintext in int256 range.
+ * @throws Error if the key is invalid.
+ */
+export function decryptInt256(ciphertext: ctInt256, userKey: string): bigint {
+    return fromTwosComplementUint(
+        decryptUint256(ciphertext, userKey),
+        MAX_PLAINTEXT_BIT_SIZE
+    )
+}
+
+/**
+ * Prepares a signed int256 input text ({@link itInt256}) for smart contract submission.
+ *
+ * Encodes `plaintext` as 256-bit two's complement, then delegates to
+ * {@link prepareIT256} for encrypt + private-key IT signature.
+ *
+ * @param plaintext - Signed value in `[-(2^255), 2^255 - 1]`.
+ * @param sender - Wallet and user AES key.
+ * @param contractAddress - Target contract address.
+ * @param functionSelector - 4-byte function selector.
+ * @returns Signed 256-bit input text.
+ * @throws RangeError if `plaintext` is outside int256 range.
+ */
+export function prepareSignedIT256(
+    plaintext: bigint,
+    sender: { wallet: BaseWallet; userKey: string },
+    contractAddress: string,
+    functionSelector: string,
+): itInt256 {
+    const value = assertIntInRange(
+        plaintext,
+        MAX_PLAINTEXT_BIT_SIZE,
+        "Plaintext size must fit in int256."
+    )
+    return prepareIT256(
+        toTwosComplementUint(value, MAX_PLAINTEXT_BIT_SIZE),
+        sender,
+        contractAddress,
+        functionSelector
+    )
 }
 
 /**
