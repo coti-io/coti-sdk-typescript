@@ -445,9 +445,14 @@ export function decryptUint(ciphertext: ctUint, userKey: string): bigint {
  * @param ciphertext - Object with `ciphertextHigh` and `ciphertextLow` parts.
  * @param userKey - AES key (32 hex chars, optionally `0x`-prefixed).
  * @returns Decrypted plaintext as a bigint (up to 256 bits).
- * @throws Error if the key is invalid.
+ * @throws Error if the key is invalid and the ciphertext is non-zero.
  */
 export function decryptUint256(ciphertext: ctUint256, userKey: string): bigint {
+    // Same rule as decryptUint: an all-zero ciphertext is empty storage and reads as 0.
+    if (ciphertext.ciphertextHigh === 0n && ciphertext.ciphertextLow === 0n) {
+        return 0n
+    }
+
     const ciphertextBytes = ctUint256ToBytes(ciphertext)
     const { cipher: cipherHigh, r: rHigh } = splitCtBlock(ciphertextBytes.slice(0, CT_SIZE))
     const { cipher: cipherLow, r: rLow } = splitCtBlock(ciphertextBytes.slice(CT_SIZE))

@@ -8,6 +8,7 @@ import {
     buildStringInputText,
     decrypt,
     decryptCtUint256,
+    decryptInt256,
     decryptUint256,
     encrypt,
     encryptNumber,
@@ -270,6 +271,32 @@ describe('Exported API edge cases', () => {
                     AES_KEY
                 )
             ).toBe(999n)
+        })
+
+        test('returns 0n for zero ciphertext in flat, tuple and nested form', () => {
+            expect(decryptCtUint256({ ciphertextHigh: 0n, ciphertextLow: 0n }, AES_KEY)).toBe(0n)
+            expect(decryptCtUint256(['0', '0'], AES_KEY)).toBe(0n)
+            expect(
+                decryptCtUint256({ high: { high: 0n, low: 0n }, low: { high: 0n, low: 0n } }, AES_KEY)
+            ).toBe(0n)
+        })
+    })
+
+    describe('decryptUint256 / decryptInt256 zero ciphertext', () => {
+        const zero = { ciphertextHigh: 0n, ciphertextLow: 0n }
+
+        test('decryptUint256 returns 0n without validating key', () => {
+            expect(decryptUint256(zero, AES_KEY)).toBe(0n)
+            expect(decryptUint256(zero, 'invalid-key')).toBe(0n)
+        })
+
+        test('decryptInt256 returns 0n', () => {
+            expect(decryptInt256(zero, AES_KEY)).toBe(0n)
+        })
+
+        test('does not short-circuit when only one half is zero', () => {
+            const encrypted = encryptUint256(2n ** 200n + 5n, AES_KEY)
+            expect(() => decryptUint256({ ...encrypted, ciphertextLow: 0n }, 'invalid-key')).toThrow()
         })
     })
 

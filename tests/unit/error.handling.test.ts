@@ -299,13 +299,9 @@ describe('Unit: Error Handling', () => {
             expect(() => decryptUint256(ciphertext, wrongKey)).toThrow('expected 32 hex characters')
         })
 
-        test('produces incorrect result when ciphertext structure is invalid', () => {
-            const invalidCiphertext = { ciphertextHigh: 0n, ciphertextLow: 0n }
-            // Function doesn't throw but will produce wrong result
-            const decrypted = decryptUint256(invalidCiphertext, VALID_USER_KEY)
-            // With zero ciphertext, it will decrypt to some value (not necessarily zero)
-            expect(typeof decrypted).toBe('bigint')
-            // The important thing is that it doesn't throw and produces a result
+        test('returns 0n for zero ciphertext, same as decryptUint', () => {
+            const zeroCiphertext = { ciphertextHigh: 0n, ciphertextLow: 0n }
+            expect(decryptUint256(zeroCiphertext, VALID_USER_KEY)).toBe(0n)
         })
     })
 
